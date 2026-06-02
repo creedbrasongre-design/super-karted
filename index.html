@@ -647,7 +647,7 @@ function buildPlatformArena(){
   if(courseGroup) scene.remove(courseGroup); courseGroup=new THREE.Group(); scene.add(courseGroup);
   centerline=[]; arenaFloors=[]; arenaWalls=[]; arenaGap=true;
   arenaBound={minX:-1320,maxX:1320,minZ:-1320,maxZ:1320};       // for minimap only; no bounce in platform mode
-  scene.background=makeSky([0x16043a,0x3a0f7a,0x06030f]); scene.fog=new THREE.Fog(0x0a0420,1800,5600);
+  scene.background=makeSky(['#16043a','#3a0f7a','#06030f']); scene.fog=new THREE.Fog(0x0a0420,1800,5600);
   const grid=new THREE.GridHelper(6400,42,0x6a3aff,0x351d63); grid.material.transparent=true; grid.material.opacity=0.22; grid.position.set(0,-360,0); courseGroup.add(grid);
   platformTiles=[]; const off=(PLATN-1)/2;
   for(let ix=0;ix<PLATN;ix++)for(let iz=0;iz<PLATN;iz++){ const cx=(ix-off)*PLATTS, cz=(iz-off)*PLATTS;
