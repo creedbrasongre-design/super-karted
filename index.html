@@ -19,9 +19,9 @@
   #pos{top:18px; right:24px; text-align:right; font-family:'Press Start 2P'; font-size:22px;}
   #pos .lab{color:var(--neon2); font-size:9px; display:block; margin-bottom:4px;}
   #timer{top:74px; right:24px; text-align:right; font-size:20px; font-weight:700; letter-spacing:1px;}
-  #item{bottom:22px; left:50%; transform:translateX(-50%); width:84px; height:84px;
-    border:3px solid var(--gold); border-radius:16px; display:grid; place-items:center;
-    background:rgba(20,8,40,.55); backdrop-filter:blur(4px); box-shadow:0 0 24px rgba(255,210,63,.4); font-size:40px;}
+  #item{bottom:22px; left:50%; transform:translateX(-50%); height:70px; min-width:84px; width:auto; padding:0 16px;
+    border:3px solid var(--gold); border-radius:16px; display:flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap;
+    background:rgba(20,8,40,.55); backdrop-filter:blur(4px); box-shadow:0 0 24px rgba(255,210,63,.4); font-size:34px;}
   #item.empty{border-color:rgba(255,255,255,.25); box-shadow:none;}
   #speedwrap{bottom:28px; right:28px; text-align:right;}
   #speed{font-family:'Press Start 2P'; font-size:26px; color:var(--lime);}
@@ -106,6 +106,8 @@
   <div class="chips" id="speedChips"></div>
   <div class="seclabel">&#9316; AI difficulty</div>
   <div class="chips" id="diffChips"></div>
+  <div class="seclabel" id="lapLabel">Laps</div>
+  <div class="chips" id="lapChips"></div>
   <div class="seclabel" id="bmodeLabel">Battle mode</div>
   <div class="chips" id="bmodeChips"></div>
   <div class="seclabel" id="balloonLabel">&#9317; Balloons each</div>
@@ -205,41 +207,61 @@ function deriveStats(car){
 const T=a=>a.map(p=>({x:p[0],z:p[1],y:p[2]||0}));
 const COURSES=[
   { name:'NEON BAY', desc:'Rolling seaside hills', roadW:495,
-    track:T([[600,300,0],[1400,260,60],[2000,500,140],[2150,1100,90],[1700,1500,0],[1900,2050,120],[1400,2350,40],[700,2250,0],[450,1750,90],[900,1400,30],[650,900,60]]),
+    track:T([[2530,1400,70],[2277,1979,140],[1638,2286,90],[910,2179,10],[435,1708,30],[435,1092,110],[910,621,130],[1638,514,50],[2277,821,0]]),
     ramp:{at:128,up:5,gap:5,lift:130}, sky:['#1a0b2e','#3a1466','#b3246b'], fog:0x5a1a55, road:0x2a1850, grid:[0x00e5ff,0x3a1466], postA:0x00e5ff, postB:0xff2d95,
     scenery:{kinds:['tree','rock'], col:0x2ad6a0, density:6, chance:0.55, offset:[140,560]} },
   { name:'SOLAR DUNES', desc:'Big dunes, wide and fast', roadW:570,
-    track:T([[500,600,0],[1200,400,90],[2000,500,30],[2450,1100,170],[2200,1850,60],[1500,2150,0],[800,2000,150],[400,1400,50],[700,1000,20]]),
+    track:T([[2690,1380,50],[2327,1960,70],[1450,2200,70],[573,1960,40],[210,1380,20],[573,800,0],[1450,560,0],[2327,800,30]]),
     ramp:{at:74,up:5,gap:6,lift:150}, sky:['#2a1206','#7a2f0e','#ffb347'], fog:0x8a4a1a, road:0x3a2410, grid:[0xffd23f,0x7a3f1e], postA:0xffd23f, postB:0xff7b00,
     scenery:{kinds:['cactus','rock'], col:0x6abf3f, density:7, chance:0.5, offset:[150,620]} },
   { name:'GLACIER', desc:'Tight, steep, technical', roadW:405,
-    track:T([[700,400,0],[1300,520,40],[1520,1000,120],[2050,1250,60],[1900,1850,160],[1300,1700,80],[1120,2250,20],[500,2000,100],[450,1300,30],[920,1080,0]]),
+    track:T([[2396,1567,120],[2021,1991,240],[1545,2074,50],[1107,2046,50],[637,1797,240],[504,1233,130],[879,809,10],[1355,726,200],[1793,754,200],[2263,1003,10]]),
     ramp:{at:182,up:5,gap:5,lift:140}, sky:['#06141f','#0e3a4a','#9fe8ff'], fog:0x2a5a6a, road:0x16323c, grid:[0x9fe8ff,0x1e4a5a], postA:0x9fe8ff, postB:0xffffff,
     scenery:{kinds:['crystal','rock'], col:0x9fe8ff, density:6, chance:0.55, offset:[120,520]} },
   { name:'MIDNIGHT CITY', desc:'Neon downtown circuit', roadW:520,
-    track:T([[600,500,0],[1400,400,40],[2200,600,0],[2520,1300,80],[2300,2000,0],[1500,2320,60],[700,2150,0],[400,1400,50],[520,900,30]]),
+    track:T([[2321,2271,30],[1690,2296,60],[1186,2385,60],[579,2271,30],[554,1640,0],[465,1136,0],[579,529,30],[1210,504,60],[1714,415,60],[2321,529,30],[2346,1160,0],[2435,1664,0]]),
     ramp:{at:100,up:5,gap:6,lift:150}, sky:['#05060f','#10183a','#2a3a7a'], fog:0x14204a, road:0x10162e, grid:[0x4a7bff,0x1a2348], postA:0x4a9bff, postB:0xff5edb,
     scenery:{kinds:['building'], col:0x4a9bff, col2:0xff5edb, density:5, chance:0.7, offset:[180,720]} },
   { name:'EMBER VALLEY', desc:'Volcanic hills, very fast', roadW:560,
-    track:T([[500,700,0],[1200,450,90],[2050,600,40],[2520,1250,170],[2250,2050,60],[1450,2300,0],[650,2050,140],[380,1300,40],[700,900,80]]),
+    track:T([[2270,1400,140],[2078,2146,220],[1592,2542,120],[1040,2405,0],[679,1797,70],[679,1003,200],[1040,395,180],[1592,258,40],[2078,654,10]]),
     ramp:{at:58,up:5,gap:6,lift:170}, sky:['#1a0603','#5a1206','#ff7a1e'], fog:0x6a1e0a, road:0x2a1208, grid:[0xff7a1e,0x6a2410], postA:0xff7a1e, postB:0xffd23f,
     scenery:{kinds:['rock','pillar'], col:0xff7a1e, density:6, chance:0.5, offset:[150,560]} },
   { name:'AURORA FALLS', desc:'Sweeping icy bends', roadW:450,
-    track:T([[700,450,0],[1500,400,60],[2250,750,120],[2400,1500,40],[2000,2150,160],[1200,2300,40],[600,1950,100],[450,1200,20],[980,800,70]]),
+    track:T([[2501,2025,80],[1796,2254,160],[1205,2081,130],[715,1870,30],[256,1418,0],[399,775,80],[1104,546,160],[1695,719,130],[2185,930,30],[2644,1382,0]]),
     ramp:{at:132,up:5,gap:5,lift:150}, sky:['#02100e','#0a3a3a','#5effc8'], fog:0x123a3a, road:0x0e2a28, grid:[0x5effc8,0x164a44], postA:0x5effc8, postB:0xb98cff,
     scenery:{kinds:['crystal','tree'], col:0x5effc8, density:6, chance:0.55, offset:[130,540]} },
   { name:'SAKURA RUSH', desc:'Blossom groves & lanterns', roadW:480,
-    track:T([[700,450,0],[1450,380,50],[2150,550,0],[2450,1150,90],[2350,1850,30],[1900,2350,0],[1200,2450,80],[600,2050,20],[400,1350,60],[500,800,0]]),
+    track:T([[2679,1400,60],[2255,1865,120],[1835,2067,60],[1450,2471,0],[835,2465,60],[645,1865,120],[679,1400,60],[523,865,0],[835,335,60],[1450,471,120],[1835,733,60],[2377,865,0]]),
     ramp:{at:120,up:5,gap:5,lift:130}, sky:['#1a0a18','#5a1a44','#ffb3d9'], fog:0x6a2a55, road:0x2a1424, grid:[0xff8fc8,0x5a2444], postA:0xff8fc8, postB:0xfff0a0,
     scenery:{kinds:['tree','mushroom','pillar'], col:0xff8fc8, col2:0xfff0a0, density:5, chance:0.65, offset:[150,580]} },
   { name:'CRYSTAL CAVERNS', desc:'Underground gem mines', roadW:430,
-    track:T([[750,550,0],[1400,450,30],[2050,650,90],[2300,1300,40],[2100,1950,120],[1500,2350,60],[850,2250,0],[450,1650,80],[420,1000,30],[750,650,0]]),
+    track:T([[2352,1728,100],[1852,1997,130],[1416,2360,10],[1007,1967,60],[527,1665,150],[774,1154,50],[913,604,20],[1475,681,140],[2041,643,90],[2142,1202,0]]),
     ramp:{at:160,up:5,gap:5,lift:120}, sky:['#0a0518','#2a0a4a','#7a3aff'], fog:0x2a1055, road:0x160a2e, grid:[0xb98cff,0x3a1a6a], postA:0xb98cff, postB:0x5effc8,
     scenery:{kinds:['crystal','pillar','rock'], col:0xb98cff, col2:0x5effc8, density:4, chance:0.7, offset:[120,480]} },
   { name:'SKYLINE SPEEDWAY', desc:'Towering city expressway', roadW:540,
-    track:T([[700,500,0],[1450,420,40],[2200,550,0],[2550,1100,60],[2500,1700,0],[2150,2250,50],[1450,2480,0],[750,2250,40],[420,1700,0],[400,1050,30]]),
+    track:T([[2411,2124,30],[1747,2239,40],[1136,2287,50],[489,2124,60],[340,1610,50],[279,1137,40],[489,636,30],[1153,521,10],[1764,473,0],[2411,636,0],[2560,1150,0],[2621,1623,10]]),
     ramp:{at:90,up:5,gap:6,lift:160}, sky:['#04060f','#0e2048','#3a6aff'], fog:0x102044, road:0x0e1426, grid:[0x3a8fff,0x16244a], postA:0x3a8fff, postB:0xff5edb,
-    scenery:{kinds:['building'], col:0x3a8fff, col2:0xff5edb, density:4, chance:0.78, offset:[200,860]} }
+    scenery:{kinds:['building'], col:0x3a8fff, col2:0xff5edb, density:4, chance:0.78, offset:[200,860]} },
+  { name:'TWILIGHT HARBOR', desc:'Dusk over the docks', roadW:500,
+    track:T([[1450,2848,90],[966,2342,150],[862,1670,110],[792,1097,20],[896,321,10],[1450,-48,90],[1934,458,150],[2038,1130,110],[2108,1703,20],[2004,2479,10]]),
+    ramp:{at:110,up:5,gap:5,lift:140}, sky:['#120a2e','#3a2466','#ff6ba8'], fog:0x3a2a66, road:0x1e1840, grid:[0x8a6bff,0x2a2055], postA:0x8a6bff, postB:0xff6ba8,
+    scenery:{kinds:['tree','rock','pillar'], col:0x6bd6ff, density:6, chance:0.55, offset:[140,560]} },
+  { name:'CANYON BLAZE', desc:'Red rock switchbacks', roadW:540,
+    track:T([[2570,1400,100],[2177,1820,190],[2010,2370,10],[1450,2240,100],[890,2370,190],[723,1820,10],[330,1400,100],[723,980,190],[890,430,10],[1450,560,100],[2010,430,190],[2177,980,10]]),
+    ramp:{at:64,up:5,gap:6,lift:170}, sky:['#220803','#6a1a08','#ff9242'], fog:0x6a2410, road:0x2e1408, grid:[0xff9242,0x6a2e14], postA:0xff9242, postB:0xffd23f,
+    scenery:{kinds:['rock','cactus','pillar'], col:0xff9242, density:7, chance:0.5, offset:[150,620]} },
+  { name:'FROSTBYTE PASS', desc:'Frozen mountain run', roadW:420,
+    track:T([[2266,1400,140],[2067,2049,260],[1714,2346,80],[1359,2432,20],[968,2311,210],[666,1777,220],[697,1038,20],[1007,562,70],[1362,396,250],[1732,387,150],[2112,703,0]]),
+    ramp:{at:150,up:5,gap:5,lift:130}, sky:['#04121f','#0c3450','#bfeeff'], fog:0x1e4a64, road:0x122c3a, grid:[0xbfeeff,0x1a4458], postA:0xbfeeff, postB:0x6bd6ff,
+    scenery:{kinds:['crystal','rock'], col:0xbfeeff, density:6, chance:0.55, offset:[120,520]} },
+  { name:'NEON METROPOLIS', desc:'Eight-lap-fast skyway', roadW:545,
+    track:T([[2531,1957,20],[1946,2167,50],[1450,2515,50],[954,2167,30],[369,1957,0],[458,1400,0],[369,843,20],[954,633,50],[1450,285,50],[1946,633,30],[2531,843,0],[2442,1400,0]]),
+    ramp:{at:78,up:5,gap:6,lift:160}, sky:['#06030f','#140a3a','#5e2aff'], fog:0x180a44, road:0x100a26, grid:[0x9b6bff,0x1e1248], postA:0x9b6bff, postB:0x33ffcc,
+    scenery:{kinds:['building'], col:0x9b6bff, col2:0x33ffcc, density:4, chance:0.78, offset:[200,860]} },
+  { name:'JUNGLE CIRCUIT', desc:'Overgrown ruin trail', roadW:470,
+    track:T([[2529,1825,120],[1998,2178,160],[1516,2298,110],[932,2446,20],[494,1975,10],[621,1343,70],[718,817,150],[1040,238,140],[1655,339,60],[2014,781,0],[2433,1160,30]]),
+    ramp:{at:120,up:5,gap:5,lift:140}, sky:['#04140a','#0e3a1e','#5eff8c'], fog:0x123a22, road:0x0e2a16, grid:[0x5eff8c,0x164a2a], postA:0x5eff8c, postB:0xffd23f,
+    scenery:{kinds:['tree','mushroom','rock'], col:0x5eff8c, col2:0xffe27a, density:6, chance:0.6, offset:[140,560]} }
 ];
 
 let selCar=0, selCourse=0;
@@ -450,8 +472,8 @@ function makeKart(isPlayer,idx,car){
   if(!isPlayer){ const m=DIFFS[selDiff].spd; st.max*=m; st.accel*=m; st.boost*=m; }
   return { x:c0.x-fwd.x*back+lft.x*lane, z:c0.z-fwd.z*back+lft.z*lane, y:c0.y, angle:h, speed:0,
     isPlayer, mesh:buildKartMesh(car.color), color:car.color, st, carName:car.name,
-    lap:0, halfway:false, prog:0, item:null, spinout:0, spinPhase:0, boost:0, drift:0, driftDir:0, charge:0,
-    vy:0, air:false, gi:0, pitch:0, roll:0, shield:0, boxTarget:null,
+    lap:0, halfway:false, prog:0, item:null, item2:null, spinout:0, spinPhase:0, boost:0, drift:0, driftDir:0, charge:0,
+    vy:0, air:false, gi:0, pitch:0, roll:0, shield:0, boxTarget:null, guardKind:null, guardCount:0, guardPhase:0, guardMeshes:[],
     balloons:balloonStart, out:false, outAt:0, invuln:0, pops:0, bounty:0, magnet:0, vault:0, interest:0, infected:false, infectedAt:0, slow:0, slowF:1, mask:0, immune:0, kbx:0, kbz:0 };
 }
 function spawnBoxes(){
@@ -487,6 +509,7 @@ const DIFFS=[
   {name:'ACE',    spd:1.06, use:0.022}
 ];
 let selDiff=1;
+let selLaps=3;
 const ITEM_DEFS=[
   {key:'boost',  emoji:'⚡',  name:'Boost',    power:0.45, rarity:1.0},
   {key:'rocket', emoji:'🚀',  name:'Rocket',   power:0.60, rarity:0.22},
@@ -494,7 +517,9 @@ const ITEM_DEFS=[
   {key:'banana', emoji:'🍌',  name:'Banana',   power:0.20, rarity:1.0},
   {key:'mine',   emoji:'💣',  name:'Mine',     power:0.55, rarity:0.45},
   {key:'shield', emoji:'🛡️', name:'Shield',   power:0.35, rarity:0.8},
-  {key:'zap',    emoji:'🌩️', name:'Zap All',  power:1.00, rarity:0.06}
+  {key:'zap',    emoji:'🌩️', name:'Zap All',  power:1.00, rarity:0.06},
+  {key:'triorb', emoji:'🟢³', name:'Triple Orb',    power:0.60, rarity:0.4},
+  {key:'tribanana',emoji:'🍌³',name:'Triple Banana', power:0.30, rarity:0.55}
 ];
 const BOUNTY_ITEMS=[
   {key:'magnet', emoji:'🧲', name:'Magnet',     power:0.50, rarity:0.05, bounty:true},
@@ -524,25 +549,38 @@ const ITEM_BY_KEY=Object.fromEntries(ITEM_DEFS.concat(BOUNTY_ITEMS,INFECTION_ITE
 let enabledItems=ITEM_DEFS.map(d=>d.key);
 function kartRank(k){ let p=1; for(const o of karts) if(o!==k && o.prog>k.prog) p++; return p; }
 function giveItem(k){          // back-of-pack gets stronger items; powerful items stay rare
-  if(k.item) return;
+  if(k.item && k.item2) return;          // both slots full
+  const give=key=>{ if(!k.item) k.item=key; else k.item2=key; };
   let pool=enabledItems.slice();
   if(mode==='battle'&&battleMode==='bounty') pool=pool.concat(BOUNTY_ITEMS.map(d=>d.key));   // heist-only items
   if(mode==='battle'&&battleMode==='infection') pool=pool.concat(INFECTION_ITEMS.map(d=>d.key));  // outbreak-only items
   if(mode==='battle'&&battleMode==='platform') pool=pool.concat(PLATFORM_ITEMS.map(d=>d.key));   // crumble-only items
   if(!pool.length) return;
   if(suddenDeath){ const good=pool.filter(x=>['rocket','orb','mine','boost','zap'].includes(x));
-    const p2=good.length?good:pool; k.item=p2[Math.floor(Math.random()*p2.length)]; return; }
+    const p2=good.length?good:pool; give(p2[Math.floor(Math.random()*p2.length)]); return; }
   const pf=mode==='battle'?0.28:(kartRank(k)-1)/Math.max(1,karts.length-1);  // 0 = leader, 1 = last place
   const spread=mode==='battle'?0.24:0.35, w=[]; let total=0;
   for(const key of pool){ const d=ITEM_BY_KEY[key];
     const wt=d.rarity*Math.exp(-((d.power-pf)**2)/(2*spread*spread)); w.push(wt); total+=wt; }
   let r=Math.random()*total;
-  for(let i=0;i<pool.length;i++){ r-=w[i]; if(r<=0){ k.item=pool[i]; return; } }
-  k.item=pool[pool.length-1];
+  for(let i=0;i<pool.length;i++){ r-=w[i]; if(r<=0){ give(pool[i]); return; } }
+  give(pool[pool.length-1]);
 }
 function useItem(k){
-  if(!k.item) return; const fwd={x:Math.sin(k.angle),z:Math.cos(k.angle)};
+  const fwd={x:Math.sin(k.angle),z:Math.cos(k.angle)};
+  if(k.guardCount>0){                                   // fire one orbiting guard
+    k.guardCount--; if(k.isPlayer) AUD.fire();
+    if(k.guardKind==='banana'){ const hx=k.x-fwd.x*70, hz=k.z-fwd.z*70;
+      const m=new THREE.Mesh(new THREE.SphereGeometry(15,10,8),new THREE.MeshStandardMaterial({color:0xffe14d,emissive:0x886600}));
+      m.position.set(hx,k.y+14,hz); scene.add(m); hazards.push({x:hx,z:hz,mesh:m,t:20,r:42,owner:k,armT:0.7}); }
+    else { const rx=k.x+fwd.x*60, rz=k.z+fwd.z*60;
+      const m=new THREE.Mesh(new THREE.SphereGeometry(13,12,10),new THREE.MeshStandardMaterial({color:0x44ff66,emissive:0x22cc44,emissiveIntensity:0.7}));
+      m.position.set(rx,k.y+16,rz); scene.add(m); rockets.push({x:rx,z:rz,y:k.y,angle:k.angle,owner:k,mesh:m,t:4.5,homing:false}); }
+    return;
+  }
+  if(!k.item) return;
   if(k.isPlayer && k.item!=='boost') AUD.fire();
+  if(k.item==='triorb'||k.item==='tribanana'){ k.guardKind=k.item==='triorb'?'orb':'banana'; k.guardCount=3; }
   if(k.item==='boost'){ k.boost=1.0; }
   else if(k.item==='shield'){ k.shield=5; }
   else if(k.item==='zap'){ for(const o of karts){ if(o!==k) hitKart(o,1.0,k); } }
@@ -592,7 +630,7 @@ function useItem(k){
       if(d<640){ const f=(640-d)/640*900; o.kbx+=dx/d*f; o.kbz+=dz/d*f; } } }
   if(battleMode==='platform'){ for(const o of karts){ if(o===k||o.out)continue; const dx=o.x-k.x,dz=o.z-k.z,d=Math.hypot(dx,dz)||1;
     if(d<360){ const f=(360-d)/360*440; o.kbx+=dx/d*f; o.kbz+=dz/d*f; } } }   // every item shoves nearby enemies
-  k.item=null;
+  k.item=k.item2; k.item2=null;          // promote the second slot
 }
 
 /* ============================================================
@@ -641,7 +679,53 @@ const ARENAS=[
             {minX:1550,maxX:1700,minZ:1080,maxZ:1320,y:0}],
     starts:[{x:1200,z:420},{x:1200,z:1980},{x:420,z:1200},{x:1980,z:1200},{x:1200,z:1200}],
     boxes:[{x:1200,z:1200},{x:1200,z:780},{x:1200,z:1620},{x:780,z:1200},{x:1620,z:1200},{x:1200,z:420},{x:1200,z:1980},{x:420,z:1200},{x:1980,z:1200}],
-    sky:['#02121a','#0a3a3a','#1a6a5a'], fog:0x0a3030, floor:0x123230, grid:[0x33ffcc,0x0a3030], wallA:0x33ffcc, wallB:0xff5e9b }
+    sky:['#02121a','#0a3a3a','#1a6a5a'], fog:0x0a3030, floor:0x123230, grid:[0x33ffcc,0x0a3030], wallA:0x33ffcc, wallB:0xff5e9b },
+  { name:'VORTEX', desc:'Spinning pinwheel walls', bound:{minX:100,maxX:2300,minZ:100,maxZ:2300}, wallH:90,
+    floors:[{minX:100,maxX:2300,minZ:100,maxZ:2300,y:0}],
+    walls:[{x:1000,z:700,w:560,d:38},{x:1700,z:1000,w:38,d:560},{x:1400,z:1700,w:560,d:38},{x:700,z:1400,w:38,d:560}],
+    starts:[{x:1200,z:300},{x:1950,z:650},{x:1950,z:1750},{x:450,z:1750},{x:450,z:650}],
+    boxes:[{x:1200,z:1200},{x:900,z:900},{x:1500,z:1500},{x:900,z:1500},{x:1500,z:900},{x:1200,z:400},{x:1200,z:2000},{x:400,z:1200},{x:2000,z:1200}],
+    sky:['#0a0518','#241055','#6a2aff'], fog:0x1e1050, floor:0x1c1838, grid:[0x9b6bff,0x1e1050], wallA:0x9b6bff, wallB:0x33ffcc },
+  { name:'BUNKERS', desc:'Scattered cover walls', bound:{minX:100,maxX:2300,minZ:100,maxZ:2300}, wallH:80,
+    floors:[{minX:100,maxX:2300,minZ:100,maxZ:2300,y:0}],
+    walls:[{x:750,z:750,w:300,d:38},{x:750,z:750,w:38,d:300},{x:1650,z:750,w:300,d:38},{x:1650,z:750,w:38,d:300},
+           {x:750,z:1650,w:300,d:38},{x:600,z:1650,w:38,d:300},{x:1650,z:1650,w:300,d:38},{x:1800,z:1650,w:38,d:300},
+           {x:1200,z:1200,w:240,d:38},{x:1200,z:1200,w:38,d:240}],
+    starts:[{x:1200,z:350},{x:2000,z:700},{x:2000,z:1700},{x:400,z:1700},{x:400,z:700}],
+    boxes:[{x:1200,z:1200},{x:750,z:750},{x:1650,z:750},{x:750,z:1650},{x:1650,z:1650},{x:1200,z:500},{x:1200,z:1900},{x:500,z:1200},{x:1900,z:1200}],
+    sky:['#12060a','#3a141e','#aa3a4a'], fog:0x3a1420, floor:0x281418, grid:[0xff6b6b,0x3a1420], wallA:0xff6b6b, wallB:0xffd23f },
+  { name:'HIGH NOON', desc:'Raised central deck', bound:{minX:100,maxX:2300,minZ:100,maxZ:2300}, wallH:90,
+    floors:[{minX:100,maxX:2300,minZ:100,maxZ:2300,y:0},
+            {minX:750,maxX:1650,minZ:750,maxZ:1650,y:100},
+            {minX:1100,maxX:1300,minZ:450,maxZ:750,y0:0,y1:100,axis:'z',ramp:true},
+            {minX:1100,maxX:1300,minZ:1650,maxZ:1950,y0:100,y1:0,axis:'z',ramp:true},
+            {minX:450,maxX:750,minZ:1100,maxZ:1300,y0:0,y1:100,axis:'x',ramp:true},
+            {minX:1650,maxX:1950,minZ:1100,maxZ:1300,y0:100,y1:0,axis:'x',ramp:true}],
+    starts:[{x:1200,z:300},{x:2000,z:650},{x:2000,z:1750},{x:400,z:1750},{x:400,z:650}],
+    boxes:[{x:1200,z:1200},{x:950,z:950},{x:1450,z:1450},{x:950,z:1450},{x:1450,z:950},{x:1200,z:400},{x:400,z:1200},{x:2000,z:1200},{x:1200,z:2000}],
+    sky:['#1a1004','#4a2e0a','#ffb347'], fog:0x4a2e10, floor:0x2a1e0e, grid:[0xffb347,0x4a2e10], wallA:0xffb347, wallB:0xff5e9b },
+  { name:'THE RINGS', desc:'Island platforms over the void', gap:true, bound:{minX:100,maxX:2300,minZ:100,maxZ:2300}, wallH:70,
+    floors:[{minX:800,maxX:1600,minZ:800,maxZ:1600,y:0},
+            {minX:950,maxX:1450,minZ:200,maxZ:700,y:0},
+            {minX:950,maxX:1450,minZ:1700,maxZ:2200,y:0},
+            {minX:200,maxX:700,minZ:950,maxZ:1450,y:0},
+            {minX:1700,maxX:2200,minZ:950,maxZ:1450,y:0},
+            {minX:1080,maxX:1320,minZ:700,maxZ:800,y:0},
+            {minX:1080,maxX:1320,minZ:1600,maxZ:1700,y:0},
+            {minX:700,maxX:800,minZ:1080,maxZ:1320,y:0},
+            {minX:1600,maxX:1700,minZ:1080,maxZ:1320,y:0}],
+    starts:[{x:1200,z:420},{x:1200,z:1980},{x:420,z:1200},{x:1980,z:1200},{x:1200,z:1200}],
+    boxes:[{x:1200,z:1200},{x:1200,z:780},{x:1200,z:1620},{x:780,z:1200},{x:1620,z:1200},{x:1200,z:420},{x:1200,z:1980},{x:420,z:1200},{x:1980,z:1200}],
+    sky:['#06021a','#1a0a4a','#4a2aaa'], fog:0x140a3a, floor:0x16103a, grid:[0x7a5eff,0x140a3a], wallA:0x7a5eff, wallB:0x33ffcc },
+  { name:'TIERS', desc:'Stacked battle pyramid', bound:{minX:100,maxX:2300,minZ:100,maxZ:2300}, wallH:95,
+    floors:[{minX:100,maxX:2300,minZ:100,maxZ:2300,y:0},
+            {minX:550,maxX:1850,minZ:550,maxZ:1850,y:80},
+            {minX:900,maxX:1500,minZ:900,maxZ:1500,y:160},
+            {minX:1100,maxX:1300,minZ:300,maxZ:550,y0:0,y1:80,axis:'z',ramp:true},
+            {minX:1150,maxX:1250,minZ:700,maxZ:900,y0:80,y1:160,axis:'z',ramp:true}],
+    starts:[{x:1200,z:250},{x:2050,z:650},{x:2050,z:1800},{x:350,z:1800},{x:350,z:650}],
+    boxes:[{x:1200,z:1200},{x:700,z:700},{x:1700,z:1700},{x:1200,z:300},{x:300,z:1200},{x:2100,z:1200},{x:1200,z:2100},{x:1050,z:1050},{x:1400,z:1400}],
+    sky:['#04140e','#0a3a2a','#2aaa7a'], fog:0x0a3a2a, floor:0x123026, grid:[0x33ffaa,0x0a3a2a], wallA:0x33ffaa, wallB:0xff8fc8 }
 ];
 function buildPlatformArena(){
   if(courseGroup) scene.remove(courseGroup); courseGroup=new THREE.Group(); scene.add(courseGroup);
@@ -731,6 +815,7 @@ function spillCoins(k,n){ const y=arenaSupport(k.x,k.z,k.y), baseY=(y<=VOID+1?k.
     const m=new THREE.Mesh(new THREE.CylinderGeometry(14,14,5,14),new THREE.MeshStandardMaterial({color:0xffe27a,emissive:0xffb000,emissiveIntensity:0.85,metalness:0.6,roughness:0.3}));
     m.rotation.x=Math.PI/2; m.position.set(x,baseY+26,z); scene.add(m); coins.push({x,z,mesh:m,alive:true,respawn:0,loose:true,life:7}); } }
 function hitKart(k,dur,attacker){ if(k.out||k.air||k.shield>0||k.spinout>0||k.invuln>0) return false;
+  if(k.guardCount>0){ k.guardCount--; k.invuln=0.4; if(k.isPlayer) AUD.hit(); return true; }   // a guard breaks, hit absorbed
   k.spinout=dur;
   if(mode==='battle'){ k.invuln=1.8;
     if(battleMode==='bounty'){                           // rob a cut of the victim's coin stash
@@ -840,7 +925,7 @@ function updateKart(k,dt){
       }
       if(aimX===undefined){ aimX=k.x+Math.sin(k.angle)*200; aimZ=k.z+Math.cos(k.angle)*200; }
     } else {
-    if(!k.item){ const fwd={x:Math.sin(k.angle),z:Math.cos(k.angle)};
+    if((!k.item||!k.item2)){ const fwd={x:Math.sin(k.angle),z:Math.cos(k.angle)};
       const valid=b=>b&&b.alive&&((b.x-k.x)*fwd.x+(b.z-k.z)*fwd.z>0)&&Math.hypot(b.x-k.x,b.z-k.z)<800;
       const pool=battleMode==='bounty'?boxes.concat(coins):boxes;
       if(!valid(k.boxTarget)){ const cand=pool.filter(valid).sort((a,b)=>((a.x-k.x)**2+(a.z-k.z)**2)-((b.x-k.x)**2+(b.z-k.z)**2)).slice(0,3); k.boxTarget=cand.length?cand[Math.floor(Math.random()*cand.length)]:null; }
@@ -860,10 +945,10 @@ function updateKart(k,dt){
         else { throttle=-0.4; steer=1; }            // boxed in by void — reverse and turn
       }
     }
-    if(k.item&&Math.random()<DIFFS[selDiff].use*1.4) useItem(k);
+    if((k.item||k.guardCount)&&Math.random()<DIFFS[selDiff].use*1.4) useItem(k);
   } else {
     const n=nearest(k.x,k.z); let aimX, aimZ;
-    if(!k.item){                                   // hunt for a nearby item box
+    if((!k.item||!k.item2)){                                   // hunt for a nearby item box
       const fwd={x:Math.sin(k.angle),z:Math.cos(k.angle)};
       const valid=b=>b&&b.alive&&((b.x-k.x)*fwd.x+(b.z-k.z)*fwd.z>0)&&Math.hypot(b.x-k.x,b.z-k.z)<750;
       if(!valid(k.boxTarget)){
@@ -875,7 +960,7 @@ function updateKart(k,dt){
     if(aimX===undefined){ const t=centerline[(n.i+(tileRace?2:7))%centerline.length]; aimX=t.x; aimZ=t.z; }
     const want=Math.atan2(aimX-k.x,aimZ-k.z); const diff=norm(want-k.angle);
     steer=Math.max(-1,Math.min(1,diff*2)); throttle=Math.abs(diff)>0.8?0.7:1;
-    if(k.item&&Math.random()<DIFFS[selDiff].use) useItem(k);
+    if((k.item||k.guardCount)&&Math.random()<DIFFS[selDiff].use) useItem(k);
   }
   if(k.boost>0) k.boost-=dt; if(k.shield>0) k.shield-=dt;
   if(k.magnet>0) k.magnet-=dt; if(k.vault>0) k.vault-=dt; if(k.interest>0) k.interest-=dt;
@@ -899,7 +984,7 @@ function updateKart(k,dt){
   if(battleMode==='platform'){ /* no walls — drive off the edge to fall */ }
   else if(mode==='battle'||tileRace) battleWall(k); else if(!k.air) clampWall(k);
 
-  for(const b of boxes){ if(b.alive&&Math.hypot(k.x-b.x,k.z-b.z)<34){ giveItem(k); b.alive=false; b.mesh.visible=false; b.respawn=suddenDeath?1.2:4; if(k.isPlayer) AUD.pickup(); } }
+  for(const b of boxes){ if(b.alive&&!(k.item&&k.item2)&&Math.hypot(k.x-b.x,k.z-b.z)<34){ giveItem(k); b.alive=false; b.mesh.visible=false; b.respawn=suddenDeath?1.2:4; if(k.isPlayer) AUD.pickup(); } }
   if(battleMode==='bounty') for(const co of coins){ if(!co.alive) continue;
     const d=Math.hypot(k.x-co.x,k.z-co.z);
     if(k.magnet>0 && d<460 && d>34){ const pull=Math.min(d, 600*dt); co.x+=(k.x-co.x)/d*pull; co.z+=(k.z-co.z)/d*pull; co.mesh.position.x=co.x; co.mesh.position.z=co.z; }
@@ -941,6 +1026,14 @@ function updateKart(k,dt){
   k.prog=k.lap*centerline.length+ng.i;
 }
 function syncMesh(k){
+  const need=k.out?0:k.guardCount;                       // keep orbiting guard meshes in sync
+  while(k.guardMeshes.length<need){ const m = k.guardKind==='orb'
+      ? new THREE.Mesh(new THREE.SphereGeometry(12,12,10),new THREE.MeshStandardMaterial({color:0x44ff66,emissive:0x22cc44,emissiveIntensity:0.7}))
+      : new THREE.Mesh(new THREE.SphereGeometry(13,10,8),new THREE.MeshStandardMaterial({color:0xffe14d,emissive:0x886600}));
+    scene.add(m); k.guardMeshes.push(m); }
+  while(k.guardMeshes.length>need){ scene.remove(k.guardMeshes.pop()); }
+  if(need){ k.guardPhase+=0.05; const n=k.guardMeshes.length;
+    for(let i=0;i<n;i++){ const a=k.guardPhase+i*2*Math.PI/n; k.guardMeshes[i].position.set(k.x+Math.cos(a)*54,k.y+18,k.z+Math.sin(a)*54); } }
   if(k.out) return;
   k.mesh.group.position.set(k.x,k.y,k.z);
   k.mesh.group.rotation.y=k.angle + (k.spinout>0?k.spinPhase:0) + (k.drift?k.driftDir*0.25:0);
@@ -1062,7 +1155,10 @@ function updateHUD(){
     document.getElementById('posnum').textContent=pos+sfx;
     if(state==='race') document.getElementById('timer').textContent=fmt((performance.now()-startTime)/1000);
   }
-  const el=document.getElementById('item'); el.textContent=player.item?ITEM_EMOJI[player.item]:'—'; el.classList.toggle('empty',!player.item);
+  const el=document.getElementById('item');
+  let it=(player.item?ITEM_EMOJI[player.item]:'—')+' '+(player.item2?ITEM_EMOJI[player.item2]:'—');
+  if(player.guardCount>0) it+=' '+(player.guardKind==='orb'?'🟢':'🍌')+'×'+player.guardCount;
+  el.textContent=it; el.classList.toggle('empty', !player.item && !player.item2 && !player.guardCount);
   document.getElementById('speed').innerHTML=Math.round(Math.abs(player.speed)/3)+'<small>KM/H</small>';
   const ch=document.getElementById('charge'); ch.style.display=player.charge>0?'block':'none';
   ch.querySelector('i').style.width=(player.charge*100)+'%';
@@ -1144,6 +1240,10 @@ function renderMenu(){
   const dc=document.getElementById('diffChips'); dc.innerHTML='';
   DIFFS.forEach((s,i)=>{ const b=document.createElement('div'); b.className='chip tog'+(i===selDiff?' sel':'');
     b.textContent=s.name; b.onclick=()=>{ selDiff=i; renderMenu(); }; dc.appendChild(b); });
+  const lapL=document.getElementById('lapLabel'), lapc=document.getElementById('lapChips');
+  lapL.style.display=isB?'none':'block'; lapc.style.display=isB?'none':'flex'; lapc.innerHTML='';
+  [1,2,3,5,7].forEach(v=>{ const b=document.createElement('div'); b.className='chip tog'+(selLaps===v?' sel':'');
+    b.textContent=v+(v===1?' lap':' laps'); b.onclick=()=>{ selLaps=v; renderMenu(); }; lapc.appendChild(b); });
   const bml=document.getElementById('bmodeLabel'), bmc=document.getElementById('bmodeChips');
   bml.style.display=isB?'block':'none'; bmc.style.display=isB?'flex':'none'; bmc.innerHTML='';
   [['balloon','🎈 Balloon Battle'],['bounty','💰 Bounty Coins'],['infection','🧟 Infection'],['platform','🧱 Last Platform']].forEach(([m,l])=>{ const b=document.createElement('div');
@@ -1183,7 +1283,7 @@ function drawArenaPreview(cnv,ar){ const ctx=cnv.getContext('2d'),W=cnv.width,H=
 }
 
 function clearRace(){
-  karts.forEach(k=>scene.remove(k.mesh.group));
+  karts.forEach(k=>{ scene.remove(k.mesh.group); (k.guardMeshes||[]).forEach(m=>scene.remove(m)); });
   hazards.forEach(h=>scene.remove(h.mesh)); rockets.forEach(r=>scene.remove(r.mesh));
   coins.forEach(c=>scene.remove(c.mesh)); coins=[];
   if(wantedMarker){ scene.remove(wantedMarker); wantedMarker=null; }
@@ -1198,6 +1298,7 @@ function initRace(){
 }
 function startGame(){
   AUD.init();
+  C.LAPS=selLaps;
   document.getElementById('menu').classList.add('hide');
   document.getElementById('finish').classList.add('hide');
   document.body.classList.add('racing');
