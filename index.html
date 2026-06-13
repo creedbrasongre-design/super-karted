@@ -482,31 +482,39 @@ const MUSIC={
 };
 
 const CARS=[
-  {name:'VOLTLINE', color:0x00e5ff, speed:7, accel:7, handling:7, weight:5, cost:0, blurb:'Balanced all-rounder. Easy to drive anywhere.'},
-  {name:'VYPER',    color:0xff2d95, speed:9, accel:5, handling:4, weight:6, cost:0, blurb:'Brutal top speed, but turns like a truck.'},
-  {name:'SPARROW',  color:0xa6ff3f, speed:5, accel:8, handling:9, weight:3, cost:0, blurb:'Featherlight and razor-sharp. Loves tight tracks.'},
-  {name:'BRUISER',  color:0xffd23f, speed:8, accel:4, handling:5, weight:9, cost:0, blurb:'Heavy hitter. Slow off the line, shoves rivals aside.'},
-  {name:'NIMBUS',   color:0xff7b00, speed:6, accel:9, handling:7, weight:4, cost:0, blurb:'Lightning starts and quick recovery.'},
-  {name:'PHANTOM',  color:0x9b6bff, speed:8, accel:7, handling:8, weight:4, cost:150, blurb:'Sleek and fast with sharp handling. A pro pick.'},
-  {name:'TANKER',   color:0xff5e3a, speed:7, accel:3, handling:4, weight:10,cost:120, blurb:'Maximum mass. Bowls rivals over, ignores bumps.'},
-  {name:'ZIPKICK',  color:0x33ffcc, speed:5, accel:10,handling:9, weight:2, cost:140, blurb:'Insane acceleration and grip. Tiny and twitchy.'},
-  {name:'COMET',    color:0xffe14d, speed:9, accel:6, handling:6, weight:5, cost:220, blurb:'Blistering top speed once it gets rolling.'},
-  {name:'AURORA',   color:0x5effc8, speed:8, accel:8, handling:9, weight:4, cost:300, blurb:'Elite all-rounder. Fast, nimble, forgiving.'},
-  {name:'OBSIDIAN', color:0xff2d6b, speed:9, accel:8, handling:7, weight:6, cost:400, blurb:'Top-tier flagship. Strong everywhere.'},
-  {name:'ECLIPSE',  color:0x7c4dff, speed:10,accel:9, handling:9, weight:5, cost:0, starCost:5,  blurb:'★ Champion kart — earned with stars. Elite all-rounder.'},
-  {name:'SERAPH',   color:0x00ffd0, speed:9, accel:10,handling:10,weight:4, cost:0, starCost:12, blurb:'★ Champion kart — featherlight perfection.'},
-  {name:'OMEGA-X',  color:0xff2dff, speed:10,accel:10,handling:10,weight:5, cost:0, starCost:20, blurb:'★ The ultimate. Max everything. Pure prestige.'},
-  {name:'VOLTBIKE', color:0x00e5ff, speed:8, accel:9, handling:9, weight:3, cost:260, bodyType:'bike', blurb:'BIKE — two-wheel speedster. Nimble, light, flicks into corners.'},
-  {name:'ASHCYCLE', color:0xff5e3a, speed:9, accel:8, handling:8, weight:3, cost:360, bodyType:'bike', blurb:'BIKE — racing machine with serious top end. Lean and mean.'},
-  {name:'WRAITH',   color:0x9b6bff, speed:9, accel:10,handling:10,weight:2, cost:0, starCost:9, bodyType:'bike', blurb:'★ BIKE — featherlight star ride. Pure agility, fragile in a brawl.'}
+  {name:'VOLTLINE', color:0x00e5ff, speed:7, accel:7, handling:7, weight:5, cost:0, sig:'none',   blurb:'Balanced all-rounder. Easy to drive anywhere.'},
+  {name:'VYPER',    color:0xff2d95, speed:9, accel:5, handling:4, weight:6, cost:0, sig:'swift',   blurb:'Brutal top speed, but turns like a truck.'},
+  {name:'SPARROW',  color:0xa6ff3f, speed:5, accel:8, handling:9, weight:3, cost:0, sig:'sharp',   blurb:'Featherlight and razor-sharp. Loves tight tracks.'},
+  {name:'BRUISER',  color:0xffd23f, speed:8, accel:4, handling:5, weight:9, cost:0, sig:'grip',    blurb:'Heavy hitter. Slow off the line, shoves rivals aside.'},
+  {name:'NIMBUS',   color:0xff7b00, speed:6, accel:9, handling:7, weight:4, cost:0, sig:'launch',  blurb:'Lightning starts and quick recovery.'},
+  {name:'PHANTOM',  color:0x9b6bff, speed:8, accel:7, handling:8, weight:4, cost:150, sig:'sharp', blurb:'Sleek and fast with sharp handling. A pro pick.'},
+  {name:'TANKER',   color:0xff5e3a, speed:7, accel:3, handling:4, weight:10,cost:120, sig:'grip',  blurb:'Maximum mass. Bowls rivals over, ignores bumps.'},
+  {name:'ZIPKICK',  color:0x33ffcc, speed:5, accel:10,handling:9, weight:2, cost:140, sig:'launch',blurb:'Insane acceleration and grip. Tiny and twitchy.'},
+  {name:'COMET',    color:0xffe14d, speed:9, accel:6, handling:6, weight:5, cost:220, sig:'swift',  blurb:'Blistering top speed once it gets rolling.'},
+  {name:'AURORA',   color:0x5effc8, speed:8, accel:8, handling:9, weight:4, cost:300, sig:'sharp',  blurb:'Elite all-rounder. Fast, nimble, forgiving.'},
+  {name:'OBSIDIAN', color:0xff2d6b, speed:9, accel:8, handling:7, weight:6, cost:400, sig:'swift',  blurb:'Top-tier flagship. Strong everywhere.'},
+  {name:'ECLIPSE',  color:0x7c4dff, speed:10,accel:9, handling:9, weight:5, cost:0, starCost:5,  sig:'sharp', blurb:'★ Champion kart — earned with stars. Elite all-rounder.'},
+  {name:'SERAPH',   color:0x00ffd0, speed:9, accel:10,handling:10,weight:4, cost:0, starCost:12, sig:'sharp', blurb:'★ Champion kart — featherlight perfection.'},
+  {name:'OMEGA-X',  color:0xff2dff, speed:10,accel:10,handling:10,weight:5, cost:0, starCost:20, sig:'swift', blurb:'★ The ultimate. Max everything. Pure prestige.'},
+  {name:'VOLTBIKE', color:0x00e5ff, speed:8, accel:9, handling:9, weight:3, cost:260, bodyType:'bike', sig:'inward', blurb:'BIKE — two-wheel speedster. Nimble, light, flicks into corners.'},
+  {name:'ASHCYCLE', color:0xff5e3a, speed:9, accel:8, handling:8, weight:3, cost:360, bodyType:'bike', sig:'swift',  blurb:'BIKE — racing machine with serious top end. Lean and mean.'},
+  {name:'WRAITH',   color:0x9b6bff, speed:9, accel:10,handling:10,weight:2, cost:0, starCost:9, bodyType:'bike', sig:'inward', blurb:'★ BIKE — featherlight star ride. Pure agility, fragile in a brawl.'}
 ];
 let ownedCars=[0,1,2,3,4], wallet=0;            // indices owned; coins banked (loaded from save)
 function deriveStats(car){
   const m=SPEEDS[selSpeed].mult, max=(340+car.speed*20)*m;
   const isBike=car.bodyType==='bike';
   const turnMul=isBike?1.9:1;   // BIKE SIGNATURE: razor-tight, super-sharp steering vs karts
-  return { max, accel:(350+car.accel*45)*m, turn:(1.6+car.handling*0.2+(car.grip||0)*0.16)*turnMul,
-           driftTurn:(2.2+car.handling*0.2+(car.grip||0)*0.16)*turnMul, boost:max*(1.7+(car.nitro||0)*0.05), weight:car.weight, bike:isBike };
+  const st={ max, accel:(350+car.accel*45)*m, turn:(1.6+car.handling*0.2+(car.grip||0)*0.16)*turnMul,
+           driftTurn:(2.2+car.handling*0.2+(car.grip||0)*0.16)*turnMul, boost:max*(1.7+(car.nitro||0)*0.05), weight:car.weight, bike:isBike, gripSpeed:200 };
+  // quiet signature traits — subtle, no banners. 'inward' (tighter drift) is handled in the physics step.
+  const t=car.sig;
+  if(t==='swift'){ st.max*=1.06; st.boost*=1.04; }           // quietly a touch faster overall
+  else if(t==='sharp'){ st.turn*=1.10; st.driftTurn*=1.08; } // quietly turns better than the rest
+  else if(t==='launch'){ st.accel*=1.15; }                   // quietly quicker off the line
+  else if(t==='grip'){ st.gripSpeed=150; }                   // quietly planted — full grip at lower speed, slides less
+  st.sig=t;
+  return st;
 }
 let upgrades={}, stars={};
 const UPG_BASE=5, UPG_HARD_MAX=10, UPG_STEP=0.6;
@@ -1524,6 +1532,14 @@ function resetPlayer(){ if(!player) return;
 addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
 // ---------- TOUCH CONTROLS ----------
 let touchPref='auto';
+let touchSteer=0, touchSteerActive=false;          // analog steer from the touch joystick (-1..1)
+function shapeSteer(raw){                            // gentle near center, ramps up toward the edges
+  const dz=0.08, a=Math.abs(raw);
+  if(a<dz) return 0;
+  const t=(a-dz)/(1-dz);                             // 0..1 deflection past the deadzone
+  const expo=0.6;                                    // 0 = linear, 1 = very curvy near center
+  return Math.sign(raw)*(expo*t*t*t+(1-expo)*t);
+}
 function isCoarse(){ return (window.matchMedia&&matchMedia('(pointer:coarse)').matches) || ('ontouchstart' in window) || navigator.maxTouchPoints>0; }
 function touchOn(){ return touchPref==='on' || (touchPref==='auto' && isCoarse()); }
 function applyTouchMode(){ document.body.classList.toggle('touch', touchOn()); }
@@ -1534,7 +1550,10 @@ function refreshTouchButtons(){ const f=document.getElementById('tFire'), s=docu
   const pad=document.getElementById('tPad'), knob=document.getElementById('tKnob'); if(!pad) return;
   let padId=null, cx=0, cy=0, R=75;
   function setPad(dx,dy){ const k=Math.max(-1,Math.min(1,dx/R)), ny=Math.max(-1,Math.min(1,dy/R));
-    keys['a']=k<-0.18; keys['d']=k>0.18; keys[' ']=Math.abs(k)>0.62;   // hard steer => auto-drift
+    const hard=Math.abs(k)>0.62;                                       // push hard L/R => auto-drift
+    let s=shapeSteer(k);                                               // analog: a little push = a little turn
+    if(hard){ const ex=(Math.abs(k)-0.62)/(1-0.62); s=Math.sign(k)*(Math.abs(s)+(1-Math.abs(s))*Math.min(1,ex)); }  // ease toward full lock through the drift zone
+    touchSteer=s; touchSteerActive=true; keys[' ']=hard;
     const rev=ny>0.45;                                                 // pull the stick DOWN past the deadzone = reverse / brake
     if(state==='countdown' && !rev && !keys['w']) revDownAt=performance.now();
     keys['w']=!rev; keys['s']=rev;                                     // push up or hold center = forward, pull down = back
@@ -1545,7 +1564,7 @@ function refreshTouchButtons(){ const f=document.getElementById('tFire'), s=docu
     const r=pad.getBoundingClientRect(); cx=r.left+r.width/2; cy=r.top+r.height/2; R=r.width/2;
     setPad(e.clientX-cx, e.clientY-cy); e.preventDefault(); });
   pad.addEventListener('pointermove',e=>{ if(e.pointerId!==padId) return; setPad(e.clientX-cx, e.clientY-cy); e.preventDefault(); });
-  function padEnd(e){ if(e.pointerId!==padId) return; padId=null; keys['w']=false; keys['s']=false; keys['a']=false; keys['d']=false; keys[' ']=false; if(knob) knob.style.transform='translate(0,0)'; pad.classList.remove('drift'); }
+  function padEnd(e){ if(e.pointerId!==padId) return; padId=null; touchSteer=0; touchSteerActive=false; keys['w']=false; keys['s']=false; keys['a']=false; keys['d']=false; keys[' ']=false; if(knob) knob.style.transform='translate(0,0)'; pad.classList.remove('drift'); }
   pad.addEventListener('pointerup',padEnd); pad.addEventListener('pointercancel',padEnd); pad.addEventListener('lostpointercapture',padEnd);
   function holdBtn(id,dn,up){ const b=document.getElementById(id); if(!b) return;
     b.addEventListener('pointerdown',e=>{ dn(); try{b.setPointerCapture(e.pointerId);}catch(_){} e.preventDefault(); });
@@ -1558,6 +1577,35 @@ function refreshTouchButtons(){ const f=document.getElementById('tFire'), s=docu
 addEventListener('contextmenu',e=>{ if(document.body.classList.contains('touch')) e.preventDefault(); });
 ['gesturestart','gesturechange','gestureend'].forEach(g=>addEventListener(g,e=>e.preventDefault()));
 addEventListener('blur',()=>{ for(const k in keys) keys[k]=false; });
+// ---------- GAMEPAD CONTROLS (Switch Pro / Xbox / PlayStation — standard mapping) ----------
+// Button positions in the W3C "standard" gamepad mapping, with the Switch labels the user asked for:
+//   idx 1 = A (right)  -> gas        idx 0 = B (bottom) -> reverse
+//   idx 2 = Y (left)   -> jump/flip  idx 3 = X (top)    -> Demolition spin
+//   idx 7 = ZR / R2    -> drift      idx 6 = ZL / L2    -> use item
+// Left stick = analog steer (same smooth curve as touch); d-pad steers digitally.
+// If a particular controller has A/B or X/Y swapped, flip the indices in the lines below.
+const padHeld={};                       // keys the gamepad is holding (so releasing one doesn't wipe a keyboard key)
+let padSteerOwned=false, padZLwas=false, padBlocked=false;
+function setPadKey(k,on){ if(on){ keys[k]=true; padHeld[k]=true; } else if(padHeld[k]){ keys[k]=false; padHeld[k]=false; } }
+function pollGamepads(){
+  if(padBlocked) return;
+  let pads; try{ pads = navigator.getGamepads ? navigator.getGamepads() : []; }
+  catch(e){ padBlocked=true; return; }       // some iframes/embeds block the gamepad API via permissions policy
+  let gp=null; for(const p of pads){ if(p && p.connected){ gp=p; break; } }
+  if(!gp){ if(padSteerOwned){ touchSteerActive=false; touchSteer=0; padSteerOwned=false; } return; }
+  const B=gp.buttons, A=gp.axes, on=i=>!!B[i]&&(B[i].pressed||B[i].value>0.5);
+  setPadKey('w', on(1)||on(12));                       // A / d-pad up  -> gas
+  setPadKey('s', on(0)||on(13));                       // B / d-pad down -> reverse
+  setPadKey('c', on(2)); setPadKey('v', on(2));        // Y -> jump / flip
+  setPadKey('x', on(3));                               // X -> Demolition spin
+  setPadKey(' ', on(7));                               // ZR -> drift
+  setPadKey('arrowleft',  on(14));                     // d-pad left  -> steer (smoothed)
+  setPadKey('arrowright', on(15));                     // d-pad right -> steer (smoothed)
+  const zl=on(6); if(zl && !padZLwas) keys['shift']=true; padZLwas=zl;   // ZL -> use item (one per press)
+  const gx=(A&&A.length)?(A[0]||0):0;                  // left stick X: -1 left, +1 right
+  if(Math.abs(gx)>0.15){ touchSteer=shapeSteer(gx); touchSteerActive=true; padSteerOwned=true; }
+  else if(padSteerOwned){ touchSteerActive=false; touchSteer=0; padSteerOwned=false; }
+}
 document.addEventListener('visibilitychange',()=>{ if(document.hidden) for(const k in keys) keys[k]=false; });
 
 const SPEEDS=[{name:'CRUISE',mult:0.8},{name:'NORMAL',mult:1.0},{name:'TURBO',mult:1.25},{name:'INSANE',mult:1.5}];
@@ -2978,7 +3026,12 @@ function updateKart(k,dt){
     if(keys['s']||keys['arrowdown'])throttle=-0.6;
     if(keys['a']||keys['arrowleft'])steer=1;
     if(keys['d']||keys['arrowright'])steer=-1;
-    drifting=keys[' ']&&Math.abs(steer)>0&&k.speed>120&&!k.air;
+    if(touchSteerActive)steer=-touchSteer;                             // analog joystick takes over (game steer is inverted: +1 = left)
+    { const tgt=steer;                                                 // ease steering in & out so every turn ramps up smoothly
+      if(touchSteerActive) k.steerSm=tgt;                              // touch is already proportional — keep it synced
+      else { const sa=1-Math.exp(-dt/0.10); k.steerSm=(k.steerSm||0)+(tgt-(k.steerSm||0))*sa; }
+      steer=k.steerSm; }
+    drifting=keys[' ']&&Math.abs(steer)>0.05&&k.speed>120&&!k.air;
     k.glideTarget=0;
     if(keys['v'] && k.air && !k.kickTricked){ k.kickTricked=true; k.kickBoostPending=true; k.trick=0.6; AUD.pickup(); }   // V while airborne (off a kicker OR a bunny-hop) -> flip + landing boost
     { const cE=keys['c']&&!k.cWas; k.cWas=keys['c']; if(cE && k.air && !k.stomp){ k.stomp=true; k.vy=-880; AUD.beep(false); } }   // SKILL: press Jump again in the air -> ground stomp
@@ -3094,7 +3147,7 @@ function updateKart(k,dt){
   k.speed+=throttle*k.st.accel*dt;
   k.speed=Math.max(-180,Math.min(top*road*surfTop, k.speed));
   if(!k.air) k.speed*=surfFric;
-  const grip=Math.min(1,Math.abs(k.speed)/200)*surfGrip;
+  const grip=Math.min(1,Math.abs(k.speed)/(k.st.gripSpeed||200))*surfGrip;
   const turn=drifting?k.st.driftTurn:k.st.turn;
   const steerScale=k.air?0.35:1;          // limited air control
   k.angle+=steer*turn*dt*grip*steerScale*(k.speed<0?-1:1);
@@ -3102,6 +3155,7 @@ function updateKart(k,dt){
   else { if(k.drift&&k.charge>0.25){ k.boost=Math.max(k.boost,k.charge);
       k.speed=Math.min(k.st.boost, k.speed+k.charge*160); }   // instant pop so the turn-boost feels snappy
     k.drift=0; k.charge=0; }
+  if(k.drift && k.st.sig==='inward'){ k.angle += (k.driftDir||0)*0.8*dt*(k.speed<0?-1:1); }   // quiet trait: drift pulls a little tighter into the corner
   const ma=k.angle+(k.glide||0); k.x+=Math.sin(ma)*k.speed*dt; k.z+=Math.cos(ma)*k.speed*dt;
   if(k.kbx||k.kbz){ k.x+=k.kbx*dt; k.z+=k.kbz*dt; const dec=Math.pow(0.045,dt); k.kbx*=dec; k.kbz*=dec; if(Math.abs(k.kbx)<4)k.kbx=0; if(Math.abs(k.kbz)<4)k.kbz=0; }
   if(battleMode==='platform'||battleMode==='demo'){ battleWall(k,true); }   // interior walls block; outer edges open for ring-outs
@@ -3455,6 +3509,7 @@ let last=performance.now();
 function loop(now){ const dt=Math.min(0.033,(now-last)/1000); last=now;
   if(csActive){ updateCutscene(dt); if(csScene&&csCam) renderer.render(csScene,csCam); requestAnimationFrame(loop); return; }
   if(riftCool>0) riftCool-=dt;
+  pollGamepads();
   if(state==='race') updateWorld(dt);
   if(expedition && expedition.active && state==='race') updateExpedition(dt);
   if(mode==='battle' && battleMode==='roam' && state==='race'){ for(const s of advStars){ if(s.alive&&s.mesh) s.mesh.rotation.y+=0.04; } if(player&&!inHollow) updateAdvAtmosphere(player.x,player.z,dt); updateTraffic(dt); updateRoamExtras(dt); }
