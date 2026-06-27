@@ -1,37 +1,44 @@
-/* Neon Drift Online Lobby Add-on V3
-   Adds a bigger driveable lobby hub:
+/* Neon Drift Online Lobby Add-on V5
+   Whole-file replacement for neon-drift-online-lobby-addon.js.
+
+   Adds:
    - ONLINE PLAY button
-   - player name
    - driveable lobby car
-   - SPACE interaction system
-   - TV preview station
-   - music radio station
+   - name above player car
+   - race-quality neon lobby art
+   - real object interaction stations, not simple pads
+   - TV preview console
+   - radio/jukebox with bass + melody + chords + drums
    - match setup desk
-   - garage / custom car spots
-   - chat box placeholder
-   - friends / achievements placeholder
-   - mini-game room placeholder
+   - garage tool station / car lift
+   - aquarium fish mini-game machine
+   - friends computer terminal
+   - room doorway / owner tools placeholder
+   - fake chat / fake players until the real server is added
 */
 
 (function () {
   "use strict";
 
-  const courses = [
-    { name: "Neon Bay", color: "#00e5ff", beat: 290, base: 220 },
-    { name: "Solar Dunes", color: "#ff9f1c", beat: 340, base: 247 },
-    { name: "Glacier", color: "#93c5fd", beat: 420, base: 196 },
-    { name: "Midnight City", color: "#ff2d95", beat: 260, base: 277 },
-    { name: "Ember Valley", color: "#ff6b00", beat: 310, base: 330 },
-    { name: "Aurora Falls", color: "#7dd3fc", beat: 380, base: 185 },
-    { name: "Sakura Rush", color: "#ffb4d6", beat: 320, base: 294 },
-    { name: "Crystal Caverns", color: "#67e8f9", beat: 360, base: 208 },
-    { name: "Skyline Speedway", color: "#c026d3", beat: 260, base: 262 },
-    { name: "Twilight Harbor", color: "#a855f7", beat: 390, base: 174 },
-    { name: "Canyon Blaze", color: "#f97316", beat: 300, base: 311 },
-    { name: "Frostbyte Pass", color: "#38bdf8", beat: 430, base: 165 },
-    { name: "Neon Metropolis", color: "#22d3ee", beat: 250, base: 330 },
-    { name: "Jungle Circuit", color: "#84cc16", beat: 350, base: 196 },
-    { name: "Cobalt Coast", color: "#06b6d4", beat: 330, base: 220 }
+  const COURSES = [
+    { name: "Neon Bay", color: 0x00e5ff, css: "#00e5ff", base: 220, beat: 280 },
+    { name: "Solar Dunes", color: 0xff9f1c, css: "#ff9f1c", base: 247, beat: 330 },
+    { name: "Glacier", color: 0x93c5fd, css: "#93c5fd", base: 196, beat: 390 },
+    { name: "Midnight City", color: 0xff2d95, css: "#ff2d95", base: 277, beat: 250 },
+    { name: "Ember Valley", color: 0xff6b00, css: "#ff6b00", base: 330, beat: 300 },
+    { name: "Aurora Falls", color: 0x7dd3fc, css: "#7dd3fc", base: 185, beat: 360 },
+    { name: "Sakura Rush", color: 0xffb4d6, css: "#ffb4d6", base: 294, beat: 310 },
+    { name: "Crystal Caverns", color: 0x67e8f9, css: "#67e8f9", base: 208, beat: 340 },
+    { name: "Skyline Speedway", color: 0xc026d3, css: "#c026d3", base: 262, beat: 250 },
+    { name: "Canyon Blaze", color: 0xf97316, css: "#f97316", base: 311, beat: 290 }
+  ];
+
+  const CARS = [
+    { name: "Comet", color: 0xffff00 },
+    { name: "Nova-X", color: 0x00e5ff },
+    { name: "Phantom", color: 0xff2d95 },
+    { name: "Tracker", color: 0xff8c00 },
+    { name: "Voltbike", color: 0x8b5cf6 }
   ];
 
   const state = {
@@ -43,40 +50,36 @@
     keys: {},
     player: null,
     fakePlayers: [],
-    garageCars: [],
     stations: [],
     currentStation: null,
     t: 0,
     courseIndex: 0,
-    watchIndex: 0,
     radioIndex: -1,
+    watchIndex: 0,
+    fish: 0,
+    carIndex: 0,
     playerName: localStorage.getItem("neonDriftPlayerName") || "Player",
     carColor: 0xffff00,
-    match: {
-      laps: 3,
-      speed: "Normal",
-      items: "Normal"
-    },
     audioCtx: null,
     musicTimer: null,
     tvCanvas: null,
     tvTexture: null,
-    fishCaught: 0
+    match: { laps: 3, speed: "Normal", items: "Normal" }
   };
 
-  function id(name) {
-    return document.getElementById(name);
+  function id(x) {
+    return document.getElementById(x);
   }
 
   function setup() {
     if (state.ready) return;
     state.ready = true;
-
     addCSS();
     addOnlineButton();
     addLobbyScreen();
     bindKeys();
-    expose();
+    window.openOnlineLobby = openOnlineLobby;
+    window.closeOnlineLobby = closeOnlineLobby;
   }
 
   if (document.readyState === "loading") {
@@ -85,248 +88,62 @@
     setup();
   }
 
-  function expose() {
-    window.openOnlineLobby = openOnlineLobby;
-    window.closeOnlineLobby = closeOnlineLobby;
-  }
-
   function addCSS() {
     if (id("onlineLobbyCSS")) return;
 
     const style = document.createElement("style");
     style.id = "onlineLobbyCSS";
     style.textContent = `
-      #onlineLobby {
-        position: fixed;
-        inset: 0;
-        z-index: 99999;
-        overflow: hidden;
-        color: white;
+      #onlineLobby{
+        position:fixed; inset:0; z-index:99999; overflow:hidden; color:white;
         background:
-          radial-gradient(circle at 20% 8%, rgba(255,255,255,.98), rgba(137,230,255,.28) 22%, transparent 45%),
-          linear-gradient(135deg, #10021d, #24003d 48%, #061b35);
+          radial-gradient(circle at 25% 10%,rgba(0,229,255,.18),transparent 30%),
+          radial-gradient(circle at 75% 18%,rgba(255,45,149,.20),transparent 28%),
+          linear-gradient(180deg,#120313,#1b0712 48%,#2b1005);
       }
-
-      #onlineLobby.hide {
-        display: none !important;
+      #onlineLobby.hide{display:none!important;}
+      #lobbyCanvas{width:100vw;height:100vh;display:block;background:#120313;}
+      .lobbyPanel{
+        position:absolute; box-sizing:border-box; padding:10px; border-radius:16px;
+        color:white; background:rgba(9,7,28,.78); border:2px solid rgba(0,229,255,.35);
+        box-shadow:0 0 22px rgba(0,229,255,.22), inset 0 0 18px rgba(255,255,255,.05);
+        backdrop-filter:blur(7px); font-family:system-ui,sans-serif;
       }
-
-      #lobbyWrap {
-        position: relative;
-        width: 100%;
-        height: 100%;
-      }
-
-      #lobbyCanvas {
-        width: 100%;
-        height: 100%;
-        display: block;
-        background: #dff7ff;
-      }
-
-      .lobbyPanel {
-        position: absolute;
-        background: rgba(8, 7, 28, .76);
-        border: 2px solid rgba(0,229,255,.32);
-        border-radius: 16px;
-        box-shadow: 0 0 22px rgba(0,229,255,.18);
-        backdrop-filter: blur(7px);
-        padding: 10px;
-        box-sizing: border-box;
-      }
-
-      #lobbyTop {
-        top: 12px;
-        left: 50%;
-        transform: translateX(-50%);
-        width: min(900px, calc(100vw - 24px));
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-      }
-
-      #lobbyTitle {
-        font-family: "Press Start 2P", system-ui, sans-serif;
-        font-size: 16px;
-        color: white;
-        text-shadow: 0 0 9px #00e5ff, 0 0 18px #ff2d95;
-        white-space: nowrap;
-      }
-
-      #playerNameInput {
-        width: 160px;
-        border: 2px solid rgba(0,229,255,.6);
-        background: rgba(255,255,255,.12);
-        color: white;
-        border-radius: 10px;
-        padding: 9px;
-        outline: none;
-        text-align: center;
-        font-weight: 900;
-      }
-
-      .lobbyBtn {
-        cursor: pointer;
-        border: 0;
-        border-radius: 10px;
-        padding: 9px 12px;
-        color: white;
-        font-weight: 900;
-        background: linear-gradient(135deg, #00e5ff, #7b2cff 55%, #ff2d95);
-        box-shadow: 0 0 12px rgba(0,229,255,.35);
-      }
-
-      .lobbyBtn.ghost {
-        background: rgba(255,255,255,.14);
-        border: 1px solid rgba(255,255,255,.28);
-      }
-
-      #lobbyHelp {
-        left: 12px;
-        top: 88px;
-        width: 260px;
-        font-size: 12px;
-        line-height: 1.45;
-      }
-
-      #lobbyHelp b {
-        color: #67e8f9;
-      }
-
-      #interactHint {
-        left: 50%;
-        bottom: 18px;
-        transform: translateX(-50%);
-        width: min(620px, calc(100vw - 24px));
-        text-align: center;
-        font-weight: 900;
-        color: #fff;
-        font-size: 14px;
-      }
-
-      #chatPanel {
-        right: 12px;
-        top: 88px;
-        width: 300px;
-        max-height: 260px;
-        font-size: 12px;
-      }
-
-      #chatFeed {
-        height: 155px;
-        overflow: auto;
-        background: rgba(0,0,0,.28);
-        border-radius: 10px;
-        padding: 8px;
-        margin-bottom: 8px;
-      }
-
-      #chatFeed div {
-        margin-bottom: 6px;
-      }
-
-      #chatInput {
-        width: calc(100% - 72px);
-        border: 2px solid rgba(0,229,255,.45);
-        background: rgba(255,255,255,.11);
-        color: white;
-        border-radius: 9px;
-        padding: 8px;
-        outline: none;
-      }
-
-      #matchPanel {
-        right: 12px;
-        bottom: 88px;
-        width: 300px;
-        font-size: 12px;
-      }
-
-      #matchPanel h3,
-      #chatPanel h3,
-      #sideInfo h3 {
-        margin: 0 0 8px;
-        color: #67e8f9;
-        font-size: 13px;
-      }
-
-      .settingLine {
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-        margin: 7px 0;
-      }
-
-      .tinyBtn {
-        cursor: pointer;
-        border: 1px solid rgba(0,229,255,.45);
-        background: rgba(0,229,255,.12);
-        color: white;
-        border-radius: 8px;
-        padding: 5px 8px;
-        font-size: 11px;
-        font-weight: 900;
-      }
-
-      #sideInfo {
-        left: 12px;
-        bottom: 88px;
-        width: 285px;
-        font-size: 12px;
-        line-height: 1.4;
-      }
-
-      #roomCodeBox {
-        color: #ffe66d;
-        font-weight: 900;
-      }
-
-      .tag {
-        display: inline-block;
-        padding: 3px 6px;
-        margin: 2px;
-        border-radius: 999px;
-        background: rgba(255,255,255,.12);
-        border: 1px solid rgba(255,255,255,.18);
-      }
-
-      @media (max-width: 900px) {
-        #lobbyHelp, #chatPanel, #matchPanel, #sideInfo {
-          width: 240px;
-          font-size: 11px;
-        }
-
-        #lobbyTop {
-          flex-wrap: wrap;
-          justify-content: center;
-        }
-      }
+      #lobbyTop{top:12px;left:50%;transform:translateX(-50%);width:min(940px,calc(100vw - 24px));display:flex;justify-content:space-between;align-items:center;gap:12px;}
+      #lobbyTitle{font-family:"Press Start 2P",system-ui,sans-serif;font-size:15px;text-shadow:0 0 9px #00e5ff,0 0 18px #ff2d95;white-space:nowrap;}
+      #playerNameInput{width:150px;border:2px solid rgba(0,229,255,.62);background:rgba(255,255,255,.12);color:white;border-radius:10px;padding:9px;outline:none;text-align:center;font-weight:900;}
+      .lobbyBtn,.tinyBtn{cursor:pointer;color:white;font-weight:900;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:linear-gradient(135deg,#00e5ff,#7b2cff 55%,#ff2d95);box-shadow:0 0 12px rgba(0,229,255,.35);}
+      .lobbyBtn{padding:9px 12px;border:0;} .lobbyBtn.ghost{background:rgba(255,255,255,.14);} .tinyBtn{padding:5px 8px;margin:2px;background:rgba(0,229,255,.14);}
+      #lobbyHelp{left:12px;top:88px;width:255px;font-size:12px;line-height:1.45;}
+      #lobbyHelp b,#chatPanel h3,#matchPanel h3,#sideInfo h3{color:#67e8f9;}
+      #chatPanel{right:12px;top:88px;width:310px;font-size:12px;}
+      #chatFeed{height:156px;overflow:auto;background:rgba(0,0,0,.30);border-radius:10px;padding:8px;margin-bottom:8px;}
+      #chatFeed div{margin-bottom:6px;}
+      #chatInput{width:calc(100% - 72px);border:2px solid rgba(0,229,255,.45);background:rgba(255,255,255,.11);color:white;border-radius:9px;padding:8px;outline:none;}
+      #matchPanel{right:12px;bottom:88px;width:310px;font-size:12px;}
+      #sideInfo{left:12px;bottom:88px;width:292px;font-size:12px;line-height:1.45;}
+      #interactHint{left:50%;bottom:18px;transform:translateX(-50%);width:min(650px,calc(100vw - 24px));text-align:center;font-weight:900;font-size:14px;}
+      .settingLine{display:flex;justify-content:space-between;gap:10px;margin:7px 0;}
+      .tag{display:inline-block;padding:3px 6px;margin:2px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);}
+      @media (max-width:900px){#lobbyHelp,#chatPanel,#matchPanel,#sideInfo{width:238px;font-size:11px;}#lobbyTop{flex-wrap:wrap;justify-content:center;}}
     `;
     document.head.appendChild(style);
   }
 
   function addOnlineButton() {
     if (id("onlineBtn")) return;
-
     const button = document.createElement("button");
     button.id = "onlineBtn";
     button.textContent = "ONLINE PLAY";
     button.onclick = openOnlineLobby;
 
     const startButton = id("startBtn");
-
     if (startButton && startButton.parentNode) {
       startButton.insertAdjacentElement("afterend", button);
       return;
     }
 
-    const menu =
-      document.querySelector("#menu .menucard") ||
-      document.querySelector("#menu") ||
-      document.querySelector(".menucard") ||
-      document.body;
-
+    const menu = document.querySelector("#menu .menucard") || document.querySelector("#menu") || document.querySelector(".menucard") || document.body;
     menu.appendChild(button);
   }
 
@@ -336,73 +153,69 @@
     const lobby = document.createElement("div");
     lobby.id = "onlineLobby";
     lobby.className = "screen hide";
-
     lobby.innerHTML = `
-      <div id="lobbyWrap">
-        <canvas id="lobbyCanvas"></canvas>
+      <canvas id="lobbyCanvas"></canvas>
 
-        <div id="lobbyTop" class="lobbyPanel">
-          <div id="lobbyTitle">NEON DRIFT ONLINE LOBBY</div>
-          <div>
-            <input id="playerNameInput" maxlength="14" value="${escapeHTML(state.playerName)}">
-            <button class="lobbyBtn" id="saveNameBtn">SAVE NAME</button>
-            <button class="lobbyBtn ghost" id="backLobbyBtn">BACK</button>
-          </div>
+      <div id="lobbyTop" class="lobbyPanel">
+        <div id="lobbyTitle">NEON DRIFT ONLINE LOBBY</div>
+        <div>
+          <input id="playerNameInput" maxlength="14" value="${escapeHTML(state.playerName)}">
+          <button class="lobbyBtn" id="saveNameBtn">SAVE NAME</button>
+          <button class="lobbyBtn ghost" id="backLobbyBtn">BACK</button>
         </div>
+      </div>
 
-        <div id="lobbyHelp" class="lobbyPanel">
-          <b>LOBBY CONTROLS</b><br>
-          W / ↑ = drive<br>
-          S / ↓ = reverse<br>
-          A D / ← → = steer<br>
-          SPACE = use station<br>
-          ENTER = chat<br>
-          ESC = leave lobby
-        </div>
+      <div id="lobbyHelp" class="lobbyPanel">
+        <b>LOBBY CONTROLS</b><br>
+        W / ↑ = drive<br>
+        S / ↓ = reverse<br>
+        A D / ← → = steer<br>
+        SPACE = use object<br>
+        ENTER = chat<br>
+        ESC = leave lobby
+      </div>
 
-        <div id="chatPanel" class="lobbyPanel">
-          <h3>LOBBY CHAT</h3>
-          <div id="chatFeed"></div>
-          <input id="chatInput" placeholder="type message">
-          <button class="tinyBtn" id="sendChatBtn">SEND</button>
-        </div>
+      <div id="chatPanel" class="lobbyPanel">
+        <h3>LOBBY CHAT</h3>
+        <div id="chatFeed"></div>
+        <input id="chatInput" placeholder="type message">
+        <button class="tinyBtn" id="sendChatBtn">SEND</button>
+      </div>
 
-        <div id="matchPanel" class="lobbyPanel">
-          <h3>MATCH SETUP</h3>
-          <div class="settingLine"><span>Course</span><b id="matchCourse">Neon Bay</b></div>
-          <div class="settingLine"><span>Laps</span><b id="matchLaps">3</b></div>
-          <div class="settingLine"><span>Speed</span><b id="matchSpeed">Normal</b></div>
-          <div class="settingLine"><span>Items</span><b id="matchItems">Normal</b></div>
-          <button class="tinyBtn" id="courseBtn">CHANGE COURSE</button>
-          <button class="tinyBtn" id="lapsBtn">LAPS</button>
-          <button class="tinyBtn" id="speedBtn">SPEED</button>
-          <button class="tinyBtn" id="itemsBtn">ITEMS</button>
-          <button class="tinyBtn" id="startMatchBtn">START MATCH</button>
-          <button class="tinyBtn" id="kickBtn">KICK FAKE PLAYER</button>
-        </div>
+      <div id="matchPanel" class="lobbyPanel">
+        <h3>MATCH SETUP</h3>
+        <div class="settingLine"><span>Course</span><b id="matchCourse">Neon Bay</b></div>
+        <div class="settingLine"><span>Laps</span><b id="matchLaps">3</b></div>
+        <div class="settingLine"><span>Speed</span><b id="matchSpeed">Normal</b></div>
+        <div class="settingLine"><span>Items</span><b id="matchItems">Normal</b></div>
+        <button class="tinyBtn" id="courseBtn">CHANGE COURSE</button>
+        <button class="tinyBtn" id="lapsBtn">LAPS</button>
+        <button class="tinyBtn" id="speedBtn">SPEED</button>
+        <button class="tinyBtn" id="itemsBtn">ITEMS</button>
+        <button class="tinyBtn" id="startMatchBtn">START MATCH</button>
+        <button class="tinyBtn" id="kickBtn">KICK FAKE PLAYER</button>
+      </div>
 
-        <div id="sideInfo" class="lobbyPanel">
-          <h3>ROOM INFO</h3>
-          Room: <span id="roomCodeBox">LOCAL-${Math.floor(1000 + Math.random() * 9000)}</span><br>
-          Radio: <span id="radioText">Off</span><br>
-          TV: <span id="tvText">Neon Bay / Player</span><br>
-          Garage Car: <span id="garageText">Comet</span><br>
-          Fish Caught: <span id="fishText">0</span><br>
-          <div style="margin-top:8px">
-            <span class="tag">Friends placeholder</span>
-            <span class="tag">Achievements placeholder</span>
-            <span class="tag">Kick placeholder</span>
-          </div>
+      <div id="sideInfo" class="lobbyPanel">
+        <h3>ROOM INFO</h3>
+        Room: <b style="color:#ffe66d">LOCAL-${Math.floor(1000 + Math.random() * 9000)}</b><br>
+        Radio: <span id="radioText">Off</span><br>
+        TV: <span id="tvText">Neon Bay / Player</span><br>
+        Garage Car: <span id="garageText">Comet</span><br>
+        Fish Caught: <span id="fishText">0</span><br>
+        <div style="margin-top:8px">
+          <span class="tag">Friends placeholder</span>
+          <span class="tag">Achievements placeholder</span>
+          <span class="tag">Owner tools placeholder</span>
         </div>
+      </div>
 
-        <div id="interactHint" class="lobbyPanel">
-          Drive to a glowing station. Press SPACE to use it.
-        </div>
+      <div id="interactHint" class="lobbyPanel">
+        Drive near a real object. Press SPACE to use it.
       </div>
     `;
 
     document.body.appendChild(lobby);
-
     id("saveNameBtn").onclick = savePlayerName;
     id("backLobbyBtn").onclick = closeOnlineLobby;
     id("sendChatBtn").onclick = sendChat;
@@ -413,55 +226,52 @@
     id("startMatchBtn").onclick = startMatchLocal;
     id("kickBtn").onclick = kickFakePlayer;
 
-    addChatMessage("System", "Welcome to the local lobby test.");
-    addChatMessage("Nova", "Drive to the TV, radio, garage, match desk, or fish room.");
+    addChat("System", "Welcome to the local lobby test.");
+    addChat("Nova", "Use the real objects now: TV console, jukebox, match desk, garage tools, aquarium, friend terminal, and room door.");
   }
 
   function openOnlineLobby() {
     document.querySelectorAll(".screen").forEach(screen => {
       if (screen.id !== "onlineLobby") screen.classList.add("hide");
     });
-
     id("onlineLobby").classList.remove("hide");
-    resizeLobbyCanvas();
-    buildLobbyWorld();
+    resizeCanvas();
+    buildWorld();
     updateHUD();
   }
 
   function closeOnlineLobby() {
     id("onlineLobby").classList.add("hide");
     stopMusic();
-    stopLobbyWorld();
-
+    stopWorld();
     const menu = id("menu") || id("mainMenu") || document.querySelector(".screen");
     if (menu) menu.classList.remove("hide");
   }
 
-  function resizeLobbyCanvas() {
+  function resizeCanvas() {
     const canvas = id("lobbyCanvas");
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
   }
 
-  function stopLobbyWorld() {
+  function stopWorld() {
     if (state.raf) cancelAnimationFrame(state.raf);
     state.raf = 0;
-
     if (state.renderer) {
       try { state.renderer.dispose(); } catch (e) {}
     }
-
     state.scene = null;
     state.camera = null;
     state.renderer = null;
     state.player = null;
     state.fakePlayers = [];
-    state.garageCars = [];
     state.stations = [];
     state.currentStation = null;
+    state.tvCanvas = null;
+    state.tvTexture = null;
   }
 
-  function buildLobbyWorld() {
+  function buildWorld() {
     const canvas = id("lobbyCanvas");
     if (!canvas) return;
 
@@ -471,339 +281,374 @@
       return;
     }
 
-    stopLobbyWorld();
+    stopWorld();
 
-    const renderer = new THREE.WebGLRenderer({
-      canvas,
-      antialias: true
-    });
-
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     renderer.setSize(canvas.width, canvas.height, false);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.setClearColor(0xdff7ff, 1);
+    renderer.setClearColor(0x160515, 1);
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.Fog(0xe8fbff, 1000, 2900);
-
-    const camera = new THREE.PerspectiveCamera(
-      58,
-      canvas.width / canvas.height,
-      1,
-      6000
-    );
+    scene.fog = new THREE.Fog(0x160515, 900, 3000);
+    const camera = new THREE.PerspectiveCamera(58, canvas.width / canvas.height, 1, 6000);
 
     state.renderer = renderer;
     state.scene = scene;
     state.camera = camera;
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0xd6c3a0, 1.45));
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x1a0710, 1.12));
+    addPointLight(0xffb000, -260, 260, 200, 1.1, 1100);
+    addPointLight(0x00e5ff, 340, 250, -160, 1.0, 900);
+    addPointLight(0xff2d95, -340, 250, -160, 1.0, 900);
 
-    const sun = new THREE.DirectionalLight(0xffffff, 1.25);
+    const sun = new THREE.DirectionalLight(0xffffff, 1.0);
     sun.position.set(-420, 620, 420);
     scene.add(sun);
 
-    const warmGlow = new THREE.PointLight(0xfff1bf, 1.1, 1200);
-    warmGlow.position.set(-260, 260, -220);
-    scene.add(warmGlow);
-
     createRoomGeometry();
-    createStations();
+    createObjectStations();
     createGarageCars();
     createFakePlayers();
 
-    state.player = createCar({
-      name: state.playerName,
-      color: state.carColor,
-      x: 0,
-      z: 160,
-      isPlayer: true
-    });
-
-    createTVScreen();
-    drawTVTexture();
-
-    animateLobby();
+    state.player = createCar({ name: state.playerName, color: state.carColor, x: 0, z: 170, isPlayer: true });
+    createTV();
+    drawTV();
+    animate();
   }
 
   function createRoomGeometry() {
-    const floorMat = matLambert(0xf1e4c6);
-    const wallMat = matLambert(0xfff2d2);
-    const trimMat = matLambert(0xcaa66d);
-    const railMat = matLambert(0x7f5c3a);
-    const glassMat = new THREE.MeshBasicMaterial({
-      color: 0xd9fbff,
-      transparent: true,
-      opacity: 0.58
-    });
-    const lightMat = new THREE.MeshBasicMaterial({
-      color: 0xffffff,
-      transparent: true,
-      opacity: 0.25
-    });
+    const floorMat = lambert(0x1b0926);
+    const wallMat = lambert(0x12031f);
+    const darkMat = lambert(0x070611);
+    const purpleMat = lambert(0x2b1646);
+    const goldMat = lambert(0xf6b21a);
+    const cyanMat = basic(0x00e5ff);
+    const pinkMat = basic(0xff2d95);
+    const yellowMat = basic(0xffea00);
 
-    box(0, -8, 0, 1100, 16, 980, floorMat);
-    box(0, 230, -500, 1100, 460, 22, wallMat);
-    box(-560, 230, 0, 22, 460, 980, wallMat);
-    box(560, 230, 0, 22, 460, 980, wallMat);
+    box(0, -8, 0, 1200, 16, 1040, floorMat);
+    box(0, 240, -525, 1200, 480, 24, wallMat);
+    box(-610, 240, 0, 24, 480, 1040, wallMat);
+    box(610, 240, 0, 24, 480, 1040, wallMat);
 
-    box(-350, 215, -150, 330, 22, 380, floorMat);
-    box(350, 215, -150, 330, 22, 380, floorMat);
-    box(0, 215, -390, 820, 22, 140, floorMat);
+    const lane1 = box(0, 0, 110, 760, 5, 130, transparentBasic(0xffd000, 0.56));
+    lane1.rotation.y = -0.08;
+    const lane2 = box(-260, 1, -105, 360, 5, 52, transparentBasic(0x00e5ff, 0.48));
+    lane2.rotation.y = 0.34;
+    const lane3 = box(260, 1, -105, 360, 5, 52, transparentBasic(0xff2d95, 0.48));
+    lane3.rotation.y = -0.34;
+
+    box(-365, 220, -155, 350, 22, 400, purpleMat);
+    box(365, 220, -155, 350, 22, 400, purpleMat);
+    box(0, 220, -415, 880, 22, 150, purpleMat);
+
+    box(-365, 268, 55, 360, 28, 16, cyanMat);
+    box(365, 268, 55, 360, 28, 16, pinkMat);
+    box(0, 268, -330, 880, 28, 16, yellowMat);
 
     for (let i = 0; i < 13; i++) {
-      box(-300 + i * 18, 8 + i * 8, 230 - i * 34, 125, 16, 36, trimMat);
-      box(300 - i * 18, 8 + i * 8, 230 - i * 34, 125, 16, 36, trimMat);
+      box(-320 + i * 20, 8 + i * 8, 250 - i * 35, 130, 16, 36, goldMat);
+      box(320 - i * 20, 8 + i * 8, 250 - i * 35, 130, 16, 36, goldMat);
+      if (i % 2 === 0) {
+        box(-392 + i * 20, 23 + i * 8, 250 - i * 35, 10, 40, 10, cyanMat);
+        box(392 - i * 20, 23 + i * 8, 250 - i * 35, 10, 40, 10, pinkMat);
+      }
     }
 
-    box(-350, 258, 48, 340, 35, 16, railMat);
-    box(350, 258, 48, 340, 35, 16, railMat);
-    box(0, 258, -310, 820, 35, 16, railMat);
+    neonRing(-470, 140, -285, 95, 0x00e5ff);
+    neonRing(470, 140, -285, 95, 0xff2d95);
+    neonRing(0, 155, -455, 115, 0xffea00);
 
-    const windows = [
-      [-360, 275, -515],
-      [0, 290, -515],
-      [360, 275, -515],
-      [-570, 245, -180],
-      [570, 245, -180]
-    ];
+    tower(-520, 60, 240, 0xffea00);
+    tower(520, 60, 240, 0xff2d95);
+    tower(-520, 60, -90, 0x00e5ff);
+    tower(520, 60, -90, 0xffea00);
+    tower(-220, 60, -380, 0xff2d95);
+    tower(220, 60, -380, 0x00e5ff);
 
-    windows.forEach((p, i) => {
-      const side = Math.abs(p[0]) > 560;
-      const w = box(p[0], p[1], p[2], 165, 135, 6, glassMat);
-      if (side) w.rotation.y = Math.PI / 2;
-
-      if (!side) {
-        box(p[0], p[1] + 73, p[2] + 2, 182, 10, 8, trimMat);
-        box(p[0], p[1] - 73, p[2] + 2, 182, 10, 8, trimMat);
-        box(p[0] - 91, p[1], p[2] + 2, 10, 150, 8, trimMat);
-        box(p[0] + 91, p[1], p[2] + 2, 10, 150, 8, trimMat);
-      }
+    const glass = transparentBasic(0x8ff7ff, 0.46);
+    [[-360, 285, -538], [0, 300, -538], [360, 285, -538]].forEach(p => {
+      box(p[0], p[1], p[2], 170, 132, 6, glass);
+      box(p[0], p[1] + 72, p[2] + 3, 190, 10, 10, cyanMat);
+      box(p[0], p[1] - 72, p[2] + 3, 190, 10, 10, pinkMat);
+      box(p[0] - 95, p[1], p[2] + 3, 10, 150, 10, yellowMat);
+      box(p[0] + 95, p[1], p[2] + 3, 10, 150, 10, yellowMat);
     });
 
-    const patch1 = box(-220, 2, 95, 260, 3, 130, lightMat);
+    const patch1 = box(-250, 3, 85, 285, 4, 120, transparentBasic(0xffffff, 0.18));
     patch1.rotation.y = -0.35;
+    const patch2 = box(235, 3, -35, 350, 4, 130, transparentBasic(0xffffff, 0.18));
+    patch2.rotation.y = 0.26;
 
-    const patch2 = box(190, 3, -40, 330, 3, 145, lightMat);
-    patch2.rotation.y = 0.25;
+    box(-445, 55, 320, 210, 110, 95, darkMat);
+    box(445, 55, 320, 210, 110, 95, darkMat);
+    box(-445, 116, 320, 230, 12, 105, cyanMat);
+    box(445, 116, 320, 230, 12, 105, pinkMat);
 
-    box(-430, 50, 305, 180, 90, 80, matLambert(0x2b1646)); // garage wall block
-    box(430, 50, 305, 180, 90, 80, matLambert(0x2b1646));  // mini game room block
-    box(0, 60, 330, 220, 120, 70, matLambert(0x20103d));   // match desk back
+    box(0, 60, 342, 250, 120, 80, darkMat);
+    box(0, 125, 300, 270, 12, 12, yellowMat);
+    box(0, 90, 300, 220, 10, 12, cyanMat);
+
+    parkingRing(-465, 150, 0x00e5ff);
+    parkingRing(-365, 150, 0xff2d95);
+    parkingRing(-265, 150, 0xffea00);
   }
 
-  function createStations() {
-    addStation("TV Preview", "tv", 0, -365, 0x00e5ff);
-    addStation("Music Radio", "radio", 235, -65, 0xffd166);
-    addStation("Match Setup", "match", 0, 255, 0xff2d95);
-    addStation("Garage", "garage", -370, 250, 0xa855f7);
-    addStation("Fish Game", "fish", 390, 245, 0x38bdf8);
-    addStation("Friends", "friends", -405, -70, 0x84cc16);
-    addStation("Rooms", "rooms", 405, -70, 0xf97316);
+  function createObjectStations() {
+    addObjectStation("TV Preview", "tv", 0, -365, 0x00e5ff, makeTVConsole);
+    addObjectStation("Music Radio", "radio", 235, -65, 0xffd166, makeRadioMachine);
+    addObjectStation("Match Setup", "match", 0, 255, 0xff2d95, makeMatchConsole);
+    addObjectStation("Garage", "garage", -370, 250, 0xa855f7, makeGarageTools);
+    addObjectStation("Fish Game", "fish", 390, 245, 0x38bdf8, makeFishTank);
+    addObjectStation("Friends", "friends", -405, -70, 0x84cc16, makeFriendsTerminal);
+    addObjectStation("Rooms", "rooms", 405, -70, 0xf97316, makeRoomDoor);
   }
 
-  function addStation(label, type, x, z, color) {
-    const mat = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity: 0.65
-    });
+  function addObjectStation(label, type, x, z, color, maker) {
+    maker(x, z, color);
+    const labelSprite = makeLabel(label, "#ffffff", colorToCSS(color));
+    labelSprite.position.set(x, 125, z);
+    state.scene.add(labelSprite);
+    addPointLight(color, x, 72, z, 0.68, 270);
+    state.stations.push({ label, type, x, z, radius: 112 });
+  }
 
-    const geo = new THREE.CylinderGeometry(55, 55, 8, 40);
-    const pad = new THREE.Mesh(geo, mat);
-    pad.position.set(x, 6, z);
-    state.scene.add(pad);
+  function makeTVConsole(x, z, color) {
+    box(x, 22, z, 130, 44, 70, lambert(0x070611));
+    box(x, 50, z - 12, 105, 12, 12, basic(color));
+    box(x - 38, 56, z + 20, 22, 8, 22, basic(0xffea00));
+    box(x, 56, z + 20, 22, 8, 22, basic(0x00e5ff));
+    box(x + 38, 56, z + 20, 22, 8, 22, basic(0xff2d95));
+    cylinder(x, 88, z - 22, 4, 4, 55, basic(color));
+    sphere(x, 120, z - 22, 14, basic(color));
+  }
 
-    const sprite = makeLabel(label, "#ffffff", colorToCSS(color));
-    sprite.position.set(x, 80, z);
-    state.scene.add(sprite);
+  function makeRadioMachine(x, z, color) {
+    box(x, 38, z, 90, 76, 55, lambert(0x12031f));
+    box(x, 80, z, 80, 12, 48, basic(color));
+    box(x, 48, z - 30, 66, 36, 8, basic(0x00e5ff));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(38, 5, 12, 48), basic(0xff2d95));
+    ring.position.set(x, 56, z - 34);
+    state.scene.add(ring);
+    const s1 = cylinder(x - 25, 26, z - 34, 17, 17, 8, lambert(0x05030a));
+    s1.rotation.x = Math.PI / 2;
+    const s2 = cylinder(x + 25, 26, z - 34, 17, 17, 8, lambert(0x05030a));
+    s2.rotation.x = Math.PI / 2;
+    box(x - 24, 92, z - 34, 8, 20, 6, basic(0x00e5ff));
+    box(x - 8, 98, z - 34, 8, 32, 6, basic(0xffea00));
+    box(x + 8, 89, z - 34, 8, 14, 6, basic(0xff2d95));
+    box(x + 24, 101, z - 34, 8, 38, 6, basic(0x00e5ff));
+  }
 
-    state.stations.push({
-      label,
-      type,
-      x,
-      z,
-      radius: 95,
-      pad,
-      sprite
-    });
+  function makeMatchConsole(x, z, color) {
+    box(x, 34, z, 150, 68, 80, lambert(0x070611));
+    box(x, 72, z - 30, 130, 12, 12, basic(color));
+    box(x, 48, z - 44, 110, 38, 8, basic(0x00e5ff));
+    cylinder(x + 80, 95, z, 4, 4, 110, basic(0xffea00));
+    box(x + 104, 130, z, 48, 30, 5, basic(0xff2d95));
+    box(x - 52, 75, z + 30, 22, 12, 22, basic(0xffea00));
+    box(x, 75, z + 30, 22, 12, 22, basic(0x00e5ff));
+    box(x + 52, 75, z + 30, 22, 12, 22, basic(0xff2d95));
+  }
+
+  function makeGarageTools(x, z, color) {
+    box(x, 25, z, 100, 50, 60, lambert(0x170827));
+    box(x, 55, z, 105, 10, 65, basic(color));
+    box(x - 32, 38, z - 35, 24, 10, 8, basic(0x00e5ff));
+    box(x, 38, z - 35, 24, 10, 8, basic(0xffea00));
+    box(x + 32, 38, z - 35, 24, 10, 8, basic(0xff2d95));
+    box(x - 60, 36, z + 30, 12, 72, 12, basic(color));
+    box(x + 60, 36, z + 30, 12, 72, 12, basic(color));
+    box(x, 75, z + 30, 140, 10, 12, basic(color));
+    cylinder(x - 92, 55, z - 10, 5, 5, 55, basic(0xffea00)).rotation.z = 0.7;
+    sphere(x - 112, 78, z - 10, 12, basic(0xffea00));
+  }
+
+  function makeFishTank(x, z, color) {
+    box(x, 24, z, 130, 48, 70, lambert(0x07131f));
+    box(x, 62, z, 115, 70, 60, transparentBasic(0x38bdf8, 0.45));
+    box(x, 102, z, 125, 10, 70, basic(color));
+    for (let i = 0; i < 4; i++) {
+      const fish = new THREE.Mesh(new THREE.ConeGeometry(9, 20, 4), basic(i % 2 ? 0xffea00 : 0xff2d95));
+      fish.position.set(x - 38 + i * 25, 62 + (i % 2) * 12, z - 40);
+      fish.rotation.z = Math.PI / 2;
+      state.scene.add(fish);
+    }
+    box(x, 110, z - 38, 95, 12, 12, basic(0x00e5ff));
+  }
+
+  function makeFriendsTerminal(x, z, color) {
+    box(x, 30, z, 110, 60, 60, lambert(0x07120b));
+    box(x, 72, z - 33, 90, 55, 8, basic(0x84cc16));
+    box(x, 18, z - 48, 95, 12, 22, basic(color));
+    cylinder(x - 38, 103, z - 31, 5, 5, 52, basic(0x00e5ff));
+    cylinder(x + 38, 103, z - 31, 5, 5, 52, basic(0xff2d95));
+    sphere(x - 38, 132, z - 31, 11, basic(0x00e5ff));
+    sphere(x + 38, 132, z - 31, 11, basic(0xff2d95));
+  }
+
+  function makeRoomDoor(x, z, color) {
+    box(x, 65, z, 130, 130, 25, lambert(0x17080a));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(70, 7, 14, 64), basic(color));
+    ring.position.set(x, 78, z - 16);
+    ring.scale.y = 1.25;
+    state.scene.add(ring);
+    box(x, 80, z - 20, 80, 115, 8, transparentBasic(0xff9f1c, 0.35));
+    box(x - 55, 20, z + 10, 20, 40, 20, basic(0xffea00));
+    box(x + 55, 20, z + 10, 20, 40, 20, basic(0xffea00));
   }
 
   function createGarageCars() {
-    const cars = [
+    [
       { name: "Comet", color: 0xffff00, x: -465, z: 150 },
       { name: "Nova-X", color: 0x00e5ff, x: -365, z: 150 },
       { name: "Phantom", color: 0xff2d95, x: -265, z: 150 }
-    ];
-
-    cars.forEach(c => {
-      const car = createCar({
-        name: c.name,
-        color: c.color,
-        x: c.x,
-        z: c.z,
-        parked: true
-      });
-      state.garageCars.push(car);
-    });
+    ].forEach(c => createCar(c));
   }
 
   function createFakePlayers() {
-    const bots = [
+    [
       { name: "Nova", color: 0x00e5ff, x: 220, z: 130 },
       { name: "Pixel", color: 0xff2d95, x: 295, z: 70 },
       { name: "Byte", color: 0x84cc16, x: 360, z: 130 }
-    ];
-
-    bots.forEach(b => {
-      const car = createCar({
-        name: b.name,
-        color: b.color,
-        x: b.x,
-        z: b.z,
-        fake: true
-      });
+    ].forEach(b => {
+      const car = createCar({ name: b.name, color: b.color, x: b.x, z: b.z, fake: true });
       car.baseX = b.x;
       car.baseZ = b.z;
       state.fakePlayers.push(car);
     });
   }
 
-  function createCar(options) {
+  function createCar(o) {
     const group = new THREE.Group();
-    group.position.set(options.x || 0, 18, options.z || 0);
-    group.rotation.y = options.rot || 0;
-    group.userData = {
-      name: options.name,
-      speed: 0,
-      fake: !!options.fake,
-      parked: !!options.parked,
-      isPlayer: !!options.isPlayer
-    };
+    group.position.set(o.x || 0, 18, o.z || 0);
+    group.rotation.y = o.rot || 0;
+    group.userData = { name: o.name || "Player", speed: 0, fake: !!o.fake, isPlayer: !!o.isPlayer };
 
-    const bodyMat = matLambert(options.color || 0xffff00);
-    const darkMat = matLambert(0x141022);
-    const glowMat = new THREE.MeshBasicMaterial({ color: options.color || 0xffff00 });
+    const body = lambert(o.color || 0xffff00);
+    const dark = lambert(0x070611);
+    const tire = lambert(0x03030a);
+    const glow = basic(o.color || 0xffff00);
+    const glass = basic(0x00e5ff);
 
-    groupBox(group, 0, 9, 0, 54, 18, 78, bodyMat);
-    groupBox(group, 0, 25, -4, 34, 20, 38, bodyMat);
-    groupBox(group, 0, 26, 16, 24, 12, 18, glowMat);
+    groupBox(group, 0, 9, 0, 58, 18, 82, body);
+    groupBox(group, 0, 25, -6, 36, 22, 40, body);
+    groupBox(group, 0, 28, 15, 26, 10, 20, glass);
+    groupBox(group, 0, 13, 46, 38, 10, 10, glow);
+    groupBox(group, 0, 12, -46, 40, 10, 8, dark);
+    groupBox(group, -34, 4, -27, 13, 14, 20, tire);
+    groupBox(group, 34, 4, -27, 13, 14, 20, tire);
+    groupBox(group, -34, 4, 27, 13, 14, 20, tire);
+    groupBox(group, 34, 4, 27, 13, 14, 20, tire);
 
-    groupBox(group, -32, 4, -25, 12, 12, 18, darkMat);
-    groupBox(group, 32, 4, -25, 12, 12, 18, darkMat);
-    groupBox(group, -32, 4, 25, 12, 12, 18, darkMat);
-    groupBox(group, 32, 4, 25, 12, 12, 18, darkMat);
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(18, 28, 4), glow);
+    nose.position.set(0, 15, 55);
+    nose.rotation.x = Math.PI / 2;
+    nose.rotation.z = Math.PI / 4;
+    group.add(nose);
 
-    const label = makeLabel(options.name, "#ffffff", colorToCSS(options.color || 0xffff00));
-    label.position.set(0, 70, 0);
+    const label = makeLabel(o.name || "Player", "#ffffff", colorToCSS(o.color || 0xffff00));
+    label.position.set(0, 76, 0);
     group.add(label);
     group.userData.label = label;
 
+    const light = new THREE.PointLight(o.color || 0xffff00, 0.28, 130);
+    light.position.set(0, 25, 0);
+    group.add(light);
     state.scene.add(group);
     return group;
   }
 
-  function createTVScreen() {
+  function createTV() {
     state.tvCanvas = document.createElement("canvas");
     state.tvCanvas.width = 512;
     state.tvCanvas.height = 256;
     state.tvTexture = new THREE.CanvasTexture(state.tvCanvas);
 
-    const screenMat = new THREE.MeshBasicMaterial({
-      map: state.tvTexture,
-      side: THREE.DoubleSide
-    });
+    box(0, 304, -508, 395, 220, 8, lambert(0x070611));
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(210, 6, 12, 80), basic(0xffea00));
+    ring.position.set(0, 304, -500);
+    ring.scale.y = 0.55;
+    state.scene.add(ring);
 
-    box(0, 304, -508, 380, 210, 8, matLambert(0x151025));
-
-    const screen = new THREE.Mesh(new THREE.PlaneGeometry(330, 165), screenMat);
+    const screen = new THREE.Mesh(
+      new THREE.PlaneGeometry(330, 165),
+      new THREE.MeshBasicMaterial({ map: state.tvTexture, side: THREE.DoubleSide })
+    );
     screen.position.set(0, 304, -502);
     state.scene.add(screen);
   }
 
-  function drawTVTexture() {
+  function drawTV() {
     if (!state.tvCanvas || !state.tvTexture) return;
-
     const ctx = state.tvCanvas.getContext("2d");
-    const course = courses[state.courseIndex];
+    const course = COURSES[state.courseIndex];
     const watched = getWatchTargetName();
 
     ctx.fillStyle = "#050816";
     ctx.fillRect(0, 0, 512, 256);
-
-    ctx.strokeStyle = course.color;
+    ctx.strokeStyle = course.css;
     ctx.lineWidth = 12;
-    ctx.shadowColor = course.color;
+    ctx.shadowColor = course.css;
     ctx.shadowBlur = 18;
-
     ctx.beginPath();
     ctx.ellipse(160, 130, 95, 55, -0.4, 0, Math.PI * 2);
     ctx.stroke();
-
     ctx.shadowBlur = 0;
-
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 25px sans-serif";
     ctx.fillText("MAP PREVIEW", 20, 38);
-
-    ctx.fillStyle = course.color;
+    ctx.fillStyle = course.css;
     ctx.font = "bold 31px sans-serif";
     ctx.fillText(course.name, 20, 82);
-
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 24px sans-serif";
     ctx.fillText("Watching:", 285, 118);
-
     ctx.fillStyle = "#ffe66d";
     ctx.font = "bold 32px sans-serif";
     ctx.fillText(watched, 285, 158);
-
     ctx.fillStyle = "#9ca3af";
     ctx.font = "18px sans-serif";
     ctx.fillText("SPACE near TV = switch view", 20, 232);
-
     state.tvTexture.needsUpdate = true;
   }
 
-  function animateLobby() {
+  function animate() {
     if (!state.scene || !state.player) return;
-
     state.t += 0.016;
-
-    updatePlayerMovement();
+    updatePlayer();
     updateFakePlayers();
-    updateCurrentStation();
+    animateObjects();
+    updateStation();
     updateCamera();
-
     state.renderer.render(state.scene, state.camera);
-    state.raf = requestAnimationFrame(animateLobby);
+    state.raf = requestAnimationFrame(animate);
   }
 
-  function updatePlayerMovement() {
+  function animateObjects() {}
+
+  function updatePlayer() {
     const p = state.player;
-    const data = p.userData;
+    const d = p.userData;
+    const focused = document.activeElement === id("chatInput") || document.activeElement === id("playerNameInput");
+    if (focused) return;
 
-    const chatFocused = document.activeElement === id("chatInput") || document.activeElement === id("playerNameInput");
-    if (chatFocused) return;
-
-    const forward = state.keys.KeyW || state.keys.ArrowUp;
+    const fwd = state.keys.KeyW || state.keys.ArrowUp;
     const back = state.keys.KeyS || state.keys.ArrowDown;
     const left = state.keys.KeyA || state.keys.ArrowLeft;
     const right = state.keys.KeyD || state.keys.ArrowRight;
 
     if (left) p.rotation.y += 0.045;
     if (right) p.rotation.y -= 0.045;
+    if (fwd) d.speed += 0.22;
+    if (back) d.speed -= 0.16;
 
-    if (forward) data.speed += 0.22;
-    if (back) data.speed -= 0.16;
-
-    data.speed *= 0.92;
-    data.speed = Math.max(-4.0, Math.min(6.0, data.speed));
-
-    p.position.x += Math.sin(p.rotation.y) * data.speed;
-    p.position.z += Math.cos(p.rotation.y) * data.speed;
-
-    p.position.x = Math.max(-500, Math.min(500, p.position.x));
-    p.position.z = Math.max(-420, Math.min(365, p.position.z));
+    d.speed *= 0.92;
+    d.speed = Math.max(-4.0, Math.min(6.0, d.speed));
+    p.position.x += Math.sin(p.rotation.y) * d.speed;
+    p.position.z += Math.cos(p.rotation.y) * d.speed;
+    p.position.x = Math.max(-525, Math.min(525, p.position.x));
+    p.position.z = Math.max(-430, Math.min(375, p.position.z));
   }
 
   function updateFakePlayers() {
@@ -815,53 +660,39 @@
     });
   }
 
-  function updateCurrentStation() {
+  function updateStation() {
     let nearest = null;
     let best = Infinity;
-
     state.stations.forEach(st => {
       const dx = state.player.position.x - st.x;
       const dz = state.player.position.z - st.z;
-      const d = Math.sqrt(dx * dx + dz * dz);
-
-      if (d < st.radius && d < best) {
-        best = d;
+      const dist = Math.sqrt(dx * dx + dz * dz);
+      if (dist < st.radius && dist < best) {
+        best = dist;
         nearest = st;
       }
     });
-
     state.currentStation = nearest;
-
-    const hint = id("interactHint");
-    if (!hint) return;
-
-    if (nearest) {
-      hint.textContent = "Press SPACE to use: " + nearest.label;
-    } else {
-      hint.textContent = "Drive to a glowing station. Press SPACE to use it.";
-    }
+    id("interactHint").textContent = nearest ? "Press SPACE to use: " + nearest.label : "Drive near a real object. Press SPACE to use it.";
   }
 
   function updateCamera() {
     const p = state.player;
     const yaw = p.rotation.y;
-
-    state.camera.position.x = p.position.x - Math.sin(yaw) * 360;
-    state.camera.position.y = 225;
-    state.camera.position.z = p.position.z - Math.cos(yaw) * 360;
-    state.camera.lookAt(p.position.x, 60, p.position.z);
+    state.camera.position.x = p.position.x - Math.sin(yaw) * 380;
+    state.camera.position.y = 230;
+    state.camera.position.z = p.position.z - Math.cos(yaw) * 380;
+    state.camera.lookAt(p.position.x, 62, p.position.z);
   }
 
   function bindKeys() {
     document.addEventListener("keydown", e => {
       if (!isLobbyOpen()) return;
-
       if (e.code === "Escape") {
         e.preventDefault();
         closeOnlineLobby();
         return;
       }
-
       if (e.code === "Enter") {
         const chat = id("chatInput");
         if (document.activeElement === chat) {
@@ -873,16 +704,12 @@
         }
         return;
       }
-
       if (e.code === "Space") {
         e.preventDefault();
-
-        const chatFocused = document.activeElement === id("chatInput") || document.activeElement === id("playerNameInput");
-        if (!chatFocused) useCurrentStation();
-
+        const focused = document.activeElement === id("chatInput") || document.activeElement === id("playerNameInput");
+        if (!focused) useStation();
         return;
       }
-
       state.keys[e.code] = true;
     });
 
@@ -892,7 +719,7 @@
 
     window.addEventListener("resize", () => {
       if (!isLobbyOpen() || !state.renderer || !state.camera) return;
-      resizeLobbyCanvas();
+      resizeCanvas();
       const canvas = id("lobbyCanvas");
       state.renderer.setSize(canvas.width, canvas.height, false);
       state.camera.aspect = canvas.width / canvas.height;
@@ -900,96 +727,71 @@
     });
   }
 
-  function useCurrentStation() {
+  function useStation() {
     const st = state.currentStation;
-
     if (!st) {
-      addChatMessage("System", "No station nearby.");
+      addChat("System", "No object nearby.");
       return;
     }
 
     if (st.type === "tv") {
       state.watchIndex++;
-      drawTVTexture();
+      drawTV();
       updateHUD();
-      addChatMessage("TV", "Now watching " + getWatchTargetName() + ".");
-    }
-
-    if (st.type === "radio") {
-      nextRadioTrack();
-    }
-
-    if (st.type === "match") {
+      addChat("TV", "Now watching " + getWatchTargetName() + ".");
+    } else if (st.type === "radio") {
+      nextRadio();
+    } else if (st.type === "match") {
       nextCourse();
-      addChatMessage("Match Desk", "Course changed to " + courses[state.courseIndex].name + ".");
-    }
-
-    if (st.type === "garage") {
-      tryNextGarageCar();
-    }
-
-    if (st.type === "fish") {
-      catchFish();
-    }
-
-    if (st.type === "friends") {
-      addChatMessage("Friends", "Friend list is a placeholder until the real server is added.");
-      addChatMessage("Friends", "Recent achievement: Nova unlocked Turbo Badge.");
-    }
-
-    if (st.type === "rooms") {
-      addChatMessage("Rooms", "Room tools are placeholders: owner, invite, kick, private room, public room.");
+      addChat("Match Desk", "Course changed to " + COURSES[state.courseIndex].name + ".");
+    } else if (st.type === "garage") {
+      changeCar();
+    } else if (st.type === "fish") {
+      state.fish++;
+      id("fishText").textContent = String(state.fish);
+      const fish = ["Neon Guppy", "Laser Trout", "Pixel Carp", "Turbo Tuna", "Glow Eel"];
+      addChat("Fish Game", "You caught a " + fish[Math.floor(Math.random() * fish.length)] + "!");
+    } else if (st.type === "friends") {
+      addChat("Friends", "Friend list is a placeholder until the server is added.");
+      addChat("Friends", "Recent achievement: Nova unlocked Turbo Badge.");
+    } else if (st.type === "rooms") {
+      addChat("Rooms", "Room tools placeholder: owner, invite, kick, private room, public room.");
     }
   }
 
   function savePlayerName() {
-    const input = id("playerNameInput");
-    const name = input.value.trim() || "Player";
-
+    const name = id("playerNameInput").value.trim() || "Player";
     state.playerName = name;
     localStorage.setItem("neonDriftPlayerName", name);
-
     if (state.player) {
+      const old = state.player.userData.label;
+      if (old) state.player.remove(old);
+      const label = makeLabel(name, "#ffffff", "#ffe66d");
+      label.position.set(0, 76, 0);
+      state.player.add(label);
       state.player.userData.name = name;
-      const oldLabel = state.player.userData.label;
-      if (oldLabel) state.player.remove(oldLabel);
-
-      const newLabel = makeLabel(name, "#ffffff", "#ffe66d");
-      newLabel.position.set(0, 70, 0);
-      state.player.add(newLabel);
-      state.player.userData.label = newLabel;
+      state.player.userData.label = label;
     }
-
-    drawTVTexture();
+    drawTV();
     updateHUD();
-    addChatMessage("System", "Name saved as " + name + ".");
+    addChat("System", "Name saved as " + name + ".");
   }
 
   function sendChat() {
     const input = id("chatInput");
     const msg = input.value.trim();
-
     if (!msg) return;
-
-    addChatMessage(state.playerName, msg);
+    addChat(state.playerName, msg);
     input.value = "";
-
     setTimeout(() => {
-      const replies = [
-        "Nice!",
-        "Meet at the match desk?",
-        "Try the radio!",
-        "I parked my car in the garage.",
-        "Fish game room is open."
-      ];
-      addChatMessage("Nova", replies[Math.floor(Math.random() * replies.length)]);
+      const replies = ["Nice!", "Meet at the match desk?", "Try the radio!", "I parked my car in the garage.", "Fish game room is open."];
+      addChat("Nova", replies[Math.floor(Math.random() * replies.length)]);
     }, 500);
   }
 
-  function addChatMessage(name, msg) {
+  function addChat(name, msg) {
     const feed = id("chatFeed");
     if (!feed) return;
-
     const div = document.createElement("div");
     div.innerHTML = "<b>" + escapeHTML(name) + ":</b> " + escapeHTML(msg);
     feed.appendChild(div);
@@ -997,165 +799,164 @@
   }
 
   function nextCourse() {
-    state.courseIndex = (state.courseIndex + 1) % courses.length;
-    drawTVTexture();
+    state.courseIndex = (state.courseIndex + 1) % COURSES.length;
+    drawTV();
     updateHUD();
   }
 
   function cycleLaps() {
     const choices = [1, 2, 3, 5, 7];
-    const index = choices.indexOf(state.match.laps);
-    state.match.laps = choices[(index + 1) % choices.length];
+    state.match.laps = choices[(choices.indexOf(state.match.laps) + 1) % choices.length];
     updateHUD();
   }
 
   function cycleSpeed() {
     const choices = ["Cruise", "Normal", "Turbo", "Insane"];
-    const index = choices.indexOf(state.match.speed);
-    state.match.speed = choices[(index + 1) % choices.length];
+    state.match.speed = choices[(choices.indexOf(state.match.speed) + 1) % choices.length];
     updateHUD();
   }
 
   function cycleItems() {
     const choices = ["None", "Normal", "Chaos"];
-    const index = choices.indexOf(state.match.items);
-    state.match.items = choices[(index + 1) % choices.length];
+    state.match.items = choices[(choices.indexOf(state.match.items) + 1) % choices.length];
     updateHUD();
   }
 
   function startMatchLocal() {
-    addChatMessage("Match Desk", "Starting local test match on " + courses[state.courseIndex].name + ".");
-    addChatMessage("System", "Real online match launching comes after the server is added.");
+    addChat("Match Desk", "Starting local test match on " + COURSES[state.courseIndex].name + ".");
+    addChat("System", "Real online match launching comes after the server is added.");
   }
 
   function kickFakePlayer() {
     const kicked = state.fakePlayers.pop();
-
     if (!kicked) {
-      addChatMessage("Room Owner", "No fake players left to kick.");
+      addChat("Room Owner", "No fake players left to kick.");
       return;
     }
-
     state.scene.remove(kicked);
-    addChatMessage("Room Owner", "Kicked fake player " + kicked.userData.name + ".");
-    drawTVTexture();
+    addChat("Room Owner", "Kicked fake player " + kicked.userData.name + ".");
+    drawTV();
     updateHUD();
   }
 
-  function nextRadioTrack() {
-    state.radioIndex = (state.radioIndex + 1) % courses.length;
+  function nextRadio() {
+    state.radioIndex = (state.radioIndex + 1) % COURSES.length;
     state.courseIndex = state.radioIndex;
-
-    const course = courses[state.radioIndex];
+    const course = COURSES[state.radioIndex];
     startMusic(course);
-    drawTVTexture();
+    drawTV();
     updateHUD();
-    addChatMessage("Radio", "Now playing: " + course.name + " theme.");
+    addChat("Radio", "Now playing: " + course.name + " theme.");
   }
 
   function startMusic(course) {
     stopMusic();
-
     const AudioClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioClass) {
-      addChatMessage("Radio", "This browser cannot play generated lobby music.");
+      addChat("Radio", "This browser cannot play generated lobby music.");
       return;
     }
 
     state.audioCtx = new AudioClass();
-
-    const notes = [1, 1.25, 1.5, 2, 1.5, 1.25];
+    const ctx = state.audioCtx;
+    const scale = [1, 1.125, 1.25, 1.5, 1.667, 2];
+    const melody = [0, 2, 4, 2, 5, 4, 2, 1];
+    const chordA = [1, 1.25, 1.5];
+    const chordB = [1, 1.333, 1.667];
     let step = 0;
 
     state.musicTimer = setInterval(() => {
       if (!state.audioCtx) return;
+      const now = ctx.currentTime;
+      const base = course.base;
 
-      const osc = state.audioCtx.createOscillator();
-      const gain = state.audioCtx.createGain();
+      playTone(base * (step % 8 < 4 ? 0.5 : 0.667), "sawtooth", 0.045, 0.18, now);
 
-      osc.type = step % 2 === 0 ? "triangle" : "square";
-      osc.frequency.value = course.base * notes[step % notes.length];
+      const note = melody[step % melody.length];
+      playTone(base * 2 * scale[note % scale.length], "triangle", 0.035, 0.16, now + 0.03);
 
-      gain.gain.setValueAtTime(0.0001, state.audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.035, state.audioCtx.currentTime + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, state.audioCtx.currentTime + 0.16);
+      if (step % 2 === 0) {
+        const chord = step % 4 === 0 ? chordA : chordB;
+        chord.forEach(mult => playTone(base * mult, "square", 0.014, 0.22, now + 0.01));
+      }
 
-      osc.connect(gain);
-      gain.connect(state.audioCtx.destination);
-
-      osc.start();
-      osc.stop(state.audioCtx.currentTime + 0.18);
+      playNoise(step % 4 === 0 ? 0.055 : 0.025, step % 4 === 0 ? 0.08 : 0.035, now + 0.005);
 
       step++;
     }, course.beat);
   }
 
-  function stopMusic() {
-    if (state.musicTimer) {
-      clearInterval(state.musicTimer);
-      state.musicTimer = null;
-    }
+  function playTone(freq, type, volume, length, startTime) {
+    const ctx = state.audioCtx;
+    if (!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, startTime);
+    gain.gain.exponentialRampToValueAtTime(volume, startTime + 0.015);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + length);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(startTime);
+    osc.stop(startTime + length + 0.02);
+  }
 
+  function playNoise(volume, length, startTime) {
+    const ctx = state.audioCtx;
+    if (!ctx) return;
+    const bufferSize = Math.max(1, Math.floor(ctx.sampleRate * length));
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random() * 2 - 1) * 0.6;
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(volume, startTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startTime + length);
+    source.connect(gain);
+    gain.connect(ctx.destination);
+    source.start(startTime);
+    source.stop(startTime + length);
+  }
+
+  function stopMusic() {
+    if (state.musicTimer) clearInterval(state.musicTimer);
+    state.musicTimer = null;
     if (state.audioCtx) {
       try { state.audioCtx.close(); } catch (e) {}
-      state.audioCtx = null;
     }
+    state.audioCtx = null;
   }
 
-  function tryNextGarageCar() {
-    const options = [
-      { name: "Comet", color: 0xffff00 },
-      { name: "Nova-X", color: 0x00e5ff },
-      { name: "Phantom", color: 0xff2d95 },
-      { name: "Tracker", color: 0xff8c00 },
-      { name: "Voltbike", color: 0x8b5cf6 }
-    ];
-
-    const current = id("garageText").textContent;
-    let index = options.findIndex(o => o.name === current);
-    index = (index + 1) % options.length;
-
-    const next = options[index];
+  function changeCar() {
+    state.carIndex = (state.carIndex + 1) % CARS.length;
+    const next = CARS[state.carIndex];
     state.carColor = next.color;
-
     if (state.player) {
+      const x = state.player.position.x;
+      const z = state.player.position.z;
+      const rot = state.player.rotation.y;
       state.scene.remove(state.player);
-      state.player = createCar({
-        name: state.playerName,
-        color: state.carColor,
-        x: 0,
-        z: 160,
-        isPlayer: true
-      });
+      state.player = createCar({ name: state.playerName, color: state.carColor, x, z, rot, isPlayer: true });
     }
-
     id("garageText").textContent = next.name;
-    addChatMessage("Garage", "You are trying the " + next.name + ".");
-  }
-
-  function catchFish() {
-    state.fishCaught++;
-    id("fishText").textContent = String(state.fishCaught);
-
-    const fish = ["Neon Guppy", "Laser Trout", "Pixel Carp", "Turbo Tuna", "Glow Eel"];
-    addChatMessage("Fish Game", "You caught a " + fish[Math.floor(Math.random() * fish.length)] + "!");
+    addChat("Garage", "You are trying the " + next.name + ".");
   }
 
   function updateHUD() {
-    const course = courses[state.courseIndex];
-
-    if (id("matchCourse")) id("matchCourse").textContent = course.name;
-    if (id("matchLaps")) id("matchLaps").textContent = String(state.match.laps);
-    if (id("matchSpeed")) id("matchSpeed").textContent = state.match.speed;
-    if (id("matchItems")) id("matchItems").textContent = state.match.items;
-    if (id("radioText")) id("radioText").textContent = state.radioIndex >= 0 ? courses[state.radioIndex].name : "Off";
-    if (id("tvText")) id("tvText").textContent = course.name + " / " + getWatchTargetName();
+    const course = COURSES[state.courseIndex];
+    id("matchCourse").textContent = course.name;
+    id("matchLaps").textContent = String(state.match.laps);
+    id("matchSpeed").textContent = state.match.speed;
+    id("matchItems").textContent = state.match.items;
+    id("radioText").textContent = state.radioIndex >= 0 ? COURSES[state.radioIndex].name : "Off";
+    id("tvText").textContent = course.name + " / " + getWatchTargetName();
   }
 
   function getWatchTargetName() {
     const names = [state.playerName].concat(state.fakePlayers.map(p => p.userData.name));
-    if (names.length === 0) return state.playerName;
-    return names[state.watchIndex % names.length];
+    return names[state.watchIndex % names.length] || state.playerName;
   }
 
   function isLobbyOpen() {
@@ -1163,9 +964,9 @@
     return lobby && !lobby.classList.contains("hide");
   }
 
-  function matLambert(color) {
-    return new THREE.MeshLambertMaterial({ color });
-  }
+  function lambert(color) { return new THREE.MeshLambertMaterial({ color }); }
+  function basic(color) { return new THREE.MeshBasicMaterial({ color }); }
+  function transparentBasic(color, opacity) { return new THREE.MeshBasicMaterial({ color, transparent: true, opacity }); }
 
   function box(x, y, z, sx, sy, sz, mat) {
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
@@ -1181,34 +982,74 @@
     return mesh;
   }
 
+  function cylinder(x, y, z, rt, rb, h, mat) {
+    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(rt, rb, h, 12), mat);
+    mesh.position.set(x, y, z);
+    state.scene.add(mesh);
+    return mesh;
+  }
+
+  function sphere(x, y, z, r, mat) {
+    const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 16, 12), mat);
+    mesh.position.set(x, y, z);
+    state.scene.add(mesh);
+    return mesh;
+  }
+
+  function addPointLight(color, x, y, z, power, distance) {
+    const light = new THREE.PointLight(color, power, distance);
+    light.position.set(x, y, z);
+    state.scene.add(light);
+  }
+
+  function neonRing(x, y, z, radius, color) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, 8, 16, 64), basic(color));
+    ring.position.set(x, y, z);
+    ring.rotation.y = Math.PI / 2;
+    state.scene.add(ring);
+    addPointLight(color, x, y, z, 0.8, 280);
+  }
+
+  function tower(x, y, z, color) {
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(22, 38, 125, 5), lambert(0x080615));
+    base.position.set(x, y, z);
+    state.scene.add(base);
+    const top = new THREE.Mesh(new THREE.ConeGeometry(32, 62, 5), basic(color));
+    top.position.set(x, y + 94, z);
+    state.scene.add(top);
+    const halo = new THREE.Mesh(new THREE.TorusGeometry(35, 4, 10, 32), basic(color));
+    halo.position.set(x, y + 132, z);
+    halo.rotation.x = Math.PI / 2;
+    state.scene.add(halo);
+    addPointLight(color, x, y + 100, z, 0.65, 240);
+  }
+
+  function parkingRing(x, z, color) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(66, 4, 12, 48), basic(color));
+    ring.position.set(x, 12, z);
+    ring.rotation.x = Math.PI / 2;
+    state.scene.add(ring);
+  }
+
   function makeLabel(text, fg, bg) {
     const canvas = document.createElement("canvas");
     canvas.width = 256;
     canvas.height = 64;
-
     const ctx = canvas.getContext("2d");
-
     ctx.fillStyle = bg || "rgba(0,0,0,.55)";
     roundRect(ctx, 8, 10, 240, 44, 14);
     ctx.fill();
-
     ctx.strokeStyle = fg || "#ffffff";
     ctx.lineWidth = 3;
     roundRect(ctx, 8, 10, 240, 44, 14);
     ctx.stroke();
-
     ctx.fillStyle = fg || "#ffffff";
     ctx.font = "bold 24px sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText(text, 128, 33);
-
     const texture = new THREE.CanvasTexture(canvas);
-    const material = new THREE.SpriteMaterial({
-      map: texture,
-      transparent: true
-    });
-
+    const material = new THREE.SpriteMaterial({ map: texture, transparent: true });
     const sprite = new THREE.Sprite(material);
     sprite.scale.set(130, 32, 1);
     return sprite;
@@ -1245,32 +1086,31 @@
     const ctx = canvas.getContext("2d");
     const w = canvas.width;
     const h = canvas.height;
-
-    ctx.fillStyle = "#dff7ff";
+    ctx.fillStyle = "#160515";
     ctx.fillRect(0, 0, w, h);
-
-    ctx.fillStyle = "#fff2d2";
+    ctx.fillStyle = "#1b0926";
     ctx.fillRect(80, 80, w - 160, h - 220);
-
-    ctx.fillStyle = "#f1e4c6";
-    ctx.fillRect(60, h - 220, w - 120, 180);
-
-    ctx.fillStyle = "#d9fbff";
-    ctx.fillRect(140, 120, 140, 90);
-    ctx.fillRect(w / 2 - 70, 110, 140, 100);
-    ctx.fillRect(w - 280, 120, 140, 90);
-
-    ctx.strokeStyle = "#caa66d";
-    ctx.lineWidth = 8;
-    ctx.strokeRect(140, 120, 140, 90);
-    ctx.strokeRect(w / 2 - 70, 110, 140, 100);
-    ctx.strokeRect(w - 280, 120, 140, 90);
-
+    ctx.fillStyle = "#ffd000";
+    ctx.globalAlpha = 0.55;
+    ctx.fillRect(140, h - 190, w - 280, 80);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = "#00e5ff";
+    ctx.lineWidth = 10;
+    ctx.beginPath();
+    ctx.ellipse(220, 180, 90, 55, -0.35, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = "#ff2d95";
+    ctx.beginPath();
+    ctx.ellipse(w - 220, 180, 90, 55, 0.35, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = "#ffea00";
+    ctx.beginPath();
+    ctx.ellipse(w / 2, 160, 110, 65, 0, 0, Math.PI * 2);
+    ctx.stroke();
     ctx.fillStyle = "#00e5ff";
     ctx.font = "bold 34px sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("ONLINE LOBBY HUB", w / 2, 55);
-
     ctx.fillStyle = "#ff2d95";
     ctx.beginPath();
     ctx.arc(w / 2, h - 120, 42, 0, Math.PI * 2);
