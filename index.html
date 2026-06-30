@@ -5172,28 +5172,67 @@ function ndHasConfig(){const c=ndConfig();return !!(c&&c.apiKey&&c.databaseURL&&
 function ndStatusPill(){if(fbDb)return '<span class="onPill good">● REAL ONLINE CONNECTED</span>'; if(fbConnecting)return '<span class="onPill warn">● CONNECTING...</span>'; if(ndHasConfig())return '<span class="onPill warn">● CONFIG SAVED, NOT CONNECTED</span>'; return '<span class="onPill warn">● SETUP NEEDED</span>';}
 function ndArcadeStatus(){if(fbDb)return '<span class="ndStatusPill good">● REAL ONLINE</span>'; if(fbConnecting)return '<span class="ndStatusPill warn">● CONNECTING</span>'; return '<span class="ndStatusPill warn">● CONNECT FIREBASE</span>';}
 function ndLoadScript(src){return new Promise((resolve,reject)=>{if(document.querySelector('script[src="'+src+'"]'))return resolve();const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=()=>reject(new Error('Could not load '+src));document.head.appendChild(s);});}
-async function ndConnect(silent){if(fbDb)return true;if(fbConnecting)return false;const cfg=ndConfig();if(!cfg){fbStatus='setup needed'; if(!silent)ndRenderSetup('Paste a Firebase config first.'); return false;}try{fbConnecting=true;fbStatus='connecting';ndUpdateArcadeMini();await ndLoadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');await ndLoadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js');const name='neon-drift-real-lobbies';try{fbApp=firebase.app(name);}catch(e){fbApp=firebase.initializeApp(cfg,name);}fbDb=firebase.database(fbApp);fbStatus='connected';fbError='';ndListen();return true;}catch(e){fbDb=null;fbError=e&&e.message?e.message:String(e);fbStatus='error';if(!silent)ndRenderSetup('Connection failed: '+fbError);return false;}finally{fbConnecting=false;ndUpdateArcadeMini();}}
+async function ndConnect(silent){
+  if(fbDb)return true;
+  if(fbConnecting)return false;
+  const cfg=ndConfig();
+  if(!cfg||!cfg.apiKey||!cfg.databaseURL||!cfg.projectId){fbStatus='setup needed';if(!silent)ndRenderSetup('Paste a Firebase config first.');return false;}
+  try{
+    fbConnecting=true;fbStatus='connecting';fbError='';ndUpdateArcadeMini();
+    await ndLoadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
+    await ndLoadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js');
+    if(!window.firebase)throw new Error('Firebase did not load. It may be blocked by a firewall or content filter.');
+    const name='neon-drift-real-lobbies';
+    try{fbApp=firebase.app(name);}catch(e){fbApp=firebase.initializeApp(cfg,name);}
+    fbDb=firebase.database(fbApp);fbStatus='connected';fbError='';ndListen();return true;
+  }catch(e){
+    fbDb=null;fbError=e&&e.message?e.message:String(e);fbStatus='error';
+    const msg='Connection failed: '+fbError+'. If this computer or school network blocks Firebase/gstatic, online lobbies cannot connect from here. The rest of the game still works offline.';
+    if(!silent)ndRenderSetup(msg);
+    return false;
+  }finally{fbConnecting=false;ndUpdateArcadeMini();}
+}
 function ndListen(){if(!fbDb||fbListening)return;fbListening=true;fbDb.ref(ND_ROOM).on('value',snap=>{const arr=[];snap.forEach(child=>{const v=child.val()||{};v.id=child.key;arr.push(v);});lobbies=arr;ndUpdateArcadeMini();const sc=document.getElementById('onlineScreen');if(sc&&!sc.classList.contains('hide')){const card=document.getElementById('onlineCard');if(card&&card.dataset.view==='find')ndRenderFindLobby(ndLobbyCategory,true);if(card&&card.dataset.view==='hub')ndRenderHub(true);if(card&&card.dataset.view==='spectate')ndRenderSpectate(ndCategory,card.dataset.lobby||'',true);if(card&&card.dataset.view==='room')ndRenderLobbyRoom(card.dataset.lobby,'',true);}});}
 function ndServerTime(){try{return firebase.database.ServerValue.TIMESTAMP;}catch(e){return Date.now();}}
-function ndRequireOnline(next){if(fbDb){next&&next();return;}ndRenderSetup('Real online lobbies need Firebase connected first. No fake people are shown while setup is missing.');ndConnect(true);}
-function ndSetPlayer(lobbyId,status){if(!fbDb||!lobbyId)return;currentLobbyId=lobbyId;const entry={name:ND.accountName||'PLAYER',status:status||'in lobby',car:ndPrimaryCarName(),lastSeen:ndServerTime(),joinedAt:ndServerTime()};const p=fbDb.ref(ND_ROOM+'/'+lobbyId+'/players/'+clientId);p.set(entry);p.onDisconnect().remove();fbDb.ref(ND_ROOM+'/'+lobbyId+'/lastSeen').set(ndServerTime());clearInterval(heartbeatTimer);heartbeatTimer=setInterval(()=>{if(fbDb&&currentLobbyId){fbDb.ref(ND_ROOM+'/'+currentLobbyId+'/players/'+clientId).update({lastSeen:ndServerTime(),name:ND.accountName||'PLAYER',status:status||'in lobby',car:ndPrimaryCarName()});fbDb.ref(ND_ROOM+'/'+currentLobbyId+'/lastSeen').set(ndServerTime());}},ND_HEARTBEAT_MS);}
+function ndRequireOnline(next){
+  if(fbDb){next&&next();return;}
+  const msg=ndHasConfig()
+    ? 'Server config is saved, but it is not connected yet. Press SAVE & CONNECT. If a firewall blocks Firebase/gstatic, real online lobbies will not load on this network.'
+    : 'Real online lobbies need Firebase connected first. No fake people or fake rooms are shown while setup is missing.';
+  ndRenderSetup(msg);
+}
+function ndSetPlayer(lobbyId,status){
+  if(!fbDb||!lobbyId)return;
+  currentLobbyId=lobbyId;
+  const entry={clientId:clientId,name:ND.accountName||'PLAYER',status:status||'in lobby',car:ndPrimaryCarName(),lastSeen:ndServerTime(),joinedAt:ndServerTime()};
+  const p=fbDb.ref(ND_ROOM+'/'+lobbyId+'/players/'+clientId);
+  p.set(entry);p.onDisconnect().remove();
+  fbDb.ref(ND_ROOM+'/'+lobbyId+'/lastSeen').set(ndServerTime());
+  clearInterval(heartbeatTimer);
+  heartbeatTimer=setInterval(()=>{if(fbDb&&currentLobbyId){fbDb.ref(ND_ROOM+'/'+currentLobbyId+'/players/'+clientId).update({clientId:clientId,lastSeen:ndServerTime(),name:ND.accountName||'PLAYER',status:status||'in lobby',car:ndPrimaryCarName()});fbDb.ref(ND_ROOM+'/'+currentLobbyId+'/lastSeen').set(ndServerTime());}},ND_HEARTBEAT_MS);
+}
 function ndLeaveLobby(){if(fbDb&&currentLobbyId){fbDb.ref(ND_ROOM+'/'+currentLobbyId+'/players/'+clientId).remove();}currentLobbyId=null;clearInterval(heartbeatTimer);heartbeatTimer=null;}
 function ndEnsureScreen(){if(document.getElementById('onlineScreen'))return;document.body.insertAdjacentHTML('beforeend','<div class="screen hide" id="onlineScreen"><div class="menucard" id="onlineCard"></div></div>');}
 function ndHeader(title,sub){return '<h1 class="mlogo" style="font-size:clamp(22px,4vw,38px)">'+ndEsc(title)+'</h1>'+(sub?'<div class="onWarn">'+ndEsc(sub)+'</div>':'')+'<div class="onTop"><div class="onPill">👤 '+ndEsc(ND.accountName||'PLAYER')+'</div><div class="onPill">🪙 '+ndCoins()+'</div><div class="onPill">⭐ '+ndStars()+'</div><div class="onPill">🛡️ SAFE CHAT ON</div>'+ndStatusPill()+'</div>';}
 function ndShow(html,view,lobbyId){ndEnsureScreen();const menu=document.getElementById('menu');if(menu)menu.classList.add('hide');const chest=document.getElementById('chestOverlay');if(chest)chest.style.display='none';const sc=document.getElementById('onlineScreen');sc.classList.remove('hide');const card=document.getElementById('onlineCard');card.dataset.view=view||'';card.dataset.lobby=lobbyId||'';card.innerHTML=html;}
 function ndBackMenu(){const sc=document.getElementById('onlineScreen');if(sc)sc.classList.add('hide');const menu=document.getElementById('menu');if(menu)menu.classList.remove('hide');if(typeof renderMenu==='function')renderMenu();}
 function ndSetupWarning(){return '<div class="onWarn"><b>Real online needs one Firebase Realtime Database project.</b><br>Until you connect Firebase, this page will show empty online lists instead of fake lobbies or fake people.</div>';}
-function ndRenderHub(skipConnect){if(!skipConnect)ndConnect(true);const count=ndActiveLobbies('all').length;const rows=ndActiveLobbies('all').slice(0,5).map(l=>'<div class="onListItem"><div><div class="onName">🏠 '+ndEsc(l.name)+'</div><div class="onSub">'+ndEsc(l.mode)+' · by '+ndEsc(l.creator)+' · '+ndPlayers(l).length+' player(s) · seen '+ndAge(l.lastSeen)+'</div></div><button class="onMiniBtn sel" data-room="'+ndEsc(l.id)+'">OPEN</button></div>').join('');
-  ndShow(ndHeader('ONLINE PLAY','Real lobby tracking is enabled only after Firebase is connected. No fake people or fake rooms are generated.')+(!fbDb?ndSetupWarning():'')+
+function ndRenderHub(skipConnect){
+  const count=ndActiveLobbies('all').length;
+  const rows=ndActiveLobbies('all').slice(0,5).map(l=>'<div class="onListItem"><div><div class="onName">🏠 '+ndEsc(l.name)+'</div><div class="onSub">'+ndEsc(l.mode)+' · by '+ndEsc(l.creator)+' · '+ndPlayers(l).length+'/'+ndEsc(l.maxLobbyPlayers||'16')+' waiting · match max '+ndEsc(l.maxMatchPlayers||'8')+' · seen '+ndAge(l.lastSeen)+'</div></div><button class="onMiniBtn sel" data-room="'+ndEsc(l.id)+'">OPEN</button></div>').join('');
+  const serverControls=fbDb
+    ? '<div class="onGood">Connected to the real lobby server.</div>'
+    : '<div class="onWarn">Online will stay empty until you connect a real Firebase server. This avoids fake people and avoids firewall errors on the front page.</div><button class="ghost" data-go="account">ACCOUNT / SERVER</button>'+(ndHasConfig()?'<button data-go="connect">CONNECT SERVER</button>':'');
+  ndShow(ndHeader('ONLINE PLAY','Real lobby tracking appears only after Firebase is connected. No fake people or fake rooms are generated.')+serverControls+
   '<div class="onGrid">'+
-    '<div class="onCard big" data-go="quick"><div class="onIcon">⚡</div><div class="onTitle">QUICK MATCH</div><div class="onText">Join the first real active lobby. If none exist, make a lobby.</div></div>'+
-    '<div class="onCard big" data-go="spectate"><div class="onIcon">📺</div><div class="onTitle">SPECTATE ONLINE LOBBIES</div><div class="onText">Browse real active lobbies and view their live roster/chat.</div></div>'+
-    '<div class="onCard big" data-go="make"><div class="onIcon">🏠</div><div class="onTitle">MAKE LOBBY</div><div class="onText">Choose mode, item rules, course voting, spectators, and safe chat.</div></div>'+ 
-    '<div class="onCard big" data-go="find"><div class="onIcon">🔎</div><div class="onTitle">FIND LOBBY</div><div class="onText">See each lobby name, creator, and how the lobby works before joining.</div></div>'+ 
-    '<div class="onCard big" data-go="friends"><div class="onIcon">⭐</div><div class="onTitle">FRIENDS</div><div class="onText">Add real player names and see whether they appear in a live lobby.</div></div>'+ 
-    '<div class="onCard big" data-go="account"><div class="onIcon">🪪</div><div class="onTitle">ACCOUNT / SERVER</div><div class="onText">Set your clean name and connect Firebase for real online lobby tracking.</div></div>'+ 
+    '<div class="onCard big" data-go="quick"><div class="onIcon">⚡</div><div class="onTitle">QUICK MATCH</div><div class="onText">Join the first real active lobby. If none exist, make a lobby.</div></div>'+ 
+    '<div class="onCard big" data-go="spectate"><div class="onIcon">📺</div><div class="onTitle">SPECTATE ONLINE LOBBIES</div><div class="onText">Browse real active lobbies and view their live roster/chat.</div></div>'+ 
+    '<div class="onCard big" data-go="make"><div class="onIcon">🏠</div><div class="onTitle">MAKE LOBBY</div><div class="onText">Choose mode, course, items, laps, player limits, spectators, and safe chat.</div></div>'+  
+    '<div class="onCard big" data-go="find"><div class="onIcon">🔎</div><div class="onTitle">FIND LOBBY</div><div class="onText">See each lobby name, creator, capacity, and rules before joining.</div></div>'+  
+    '<div class="onCard big" data-go="friends"><div class="onIcon">⭐</div><div class="onTitle">FRIENDS</div><div class="onText">Add real player names and see whether they appear in a live lobby.</div></div>'+  
+    '<div class="onCard big" data-go="account"><div class="onIcon">🪪</div><div class="onTitle">ACCOUNT / SERVER</div><div class="onText">Set your clean name and connect Firebase for real online lobby tracking.</div></div>'+  
   '</div><div class="onCard"><div class="onTitle">REAL ONLINE LOBBIES: '+count+'</div><div class="onList">'+(rows||'<div class="onTiny">No real online lobbies found. This is empty on purpose — fake people were removed.</div>')+'</div></div><button class="ghost onBack" data-go="menu">← BACK TO MAIN MENU</button>','hub');
-  document.querySelectorAll('#onlineScreen [data-go]').forEach(el=>el.onclick=()=>{const g=el.getAttribute('data-go');if(g==='quick')ndQuickMatch();else if(g==='spectate')ndRenderSpectate('all');else if(g==='make')ndRenderMakeLobby();else if(g==='find')ndRenderFindLobby('all');else if(g==='friends')ndRenderFriends();else if(g==='account')ndRenderAccount();else ndBackMenu();});
+  document.querySelectorAll('#onlineScreen [data-go]').forEach(el=>el.onclick=()=>{const g=el.getAttribute('data-go');if(g==='quick')ndQuickMatch();else if(g==='spectate')ndRenderSpectate('all');else if(g==='make')ndRenderMakeLobby();else if(g==='find')ndRenderFindLobby('all');else if(g==='friends')ndRenderFriends();else if(g==='account')ndRenderAccount();else if(g==='connect')ndConnect(false).then(ok=>{if(ok)ndRenderHub(true);});else ndBackMenu();});
   document.querySelectorAll('#onlineScreen [data-room]').forEach(b=>b.onclick=()=>ndRenderLobbyRoom(b.getAttribute('data-room')));
 }
 function ndRenderSetup(msg){const example='{\n  "apiKey": "PASTE_FROM_FIREBASE",\n  "authDomain": "your-project.firebaseapp.com",\n  "databaseURL": "https://your-project-default-rtdb.firebaseio.com",\n  "projectId": "your-project",\n  "storageBucket": "your-project.appspot.com",\n  "messagingSenderId": "000000000000",\n  "appId": "1:000000000000:web:abc123"\n}';
@@ -5204,22 +5243,123 @@ function ndRenderSetup(msg){const example='{\n  "apiKey": "PASTE_FROM_FIREBASE",
   document.querySelector('#onlineScreen [data-back]').onclick=ndRenderHub;
 }
 function ndQuickMatch(){ND.stats.quick=(ND.stats.quick||0)+1;ndSave();ndRequireOnline(()=>{const l=ndActiveLobbies('all')[0];if(!l){ndShow(ndHeader('QUICK MATCH','No real lobbies are online right now.')+'<div class="onCard"><div class="onTitle">NO REAL LOBBIES FOUND</div><div class="onText">Make a lobby and send the page link to another player, or wait for someone else to host.</div><button data-make="1">MAKE LOBBY</button><button class="ghost" data-back="1">BACK</button></div>','quick');document.querySelector('#onlineScreen [data-make]').onclick=ndRenderMakeLobby;document.querySelector('#onlineScreen [data-back]').onclick=ndRenderHub;return;}ndRenderLobbyRoom(l.id,'Quick Match joined the first real active lobby.');});}
-function ndStartLocalMatch(m){try{const sc=document.getElementById('onlineScreen');if(sc)sc.classList.add('hide');if(/battle|balloon/i.test(m.mode)){if(typeof mode!=='undefined')mode='battle';if(typeof battleMode!=='undefined')battleMode='balloon';}else{if(typeof mode!=='undefined')mode='race';}if(typeof renderMenu==='function')renderMenu();if(typeof startGame==='function')startGame();}catch(e){ndRenderHub(true);}}
+function ndApplyLobbyMatchSettings(l){
+  if(!l)l={};
+  try{
+    const modeText=String(l.mode||'Race');
+    if(/battle|balloon|bounty|infection|platform|juggernaut/i.test(modeText)){
+      if(typeof mode!=='undefined')mode='battle';
+      if(typeof battleMode!=='undefined'){
+        if(/bounty/i.test(modeText))battleMode='bounty';
+        else if(/infection/i.test(modeText))battleMode='infection';
+        else if(/platform/i.test(modeText))battleMode='platform';
+        else if(/juggernaut/i.test(modeText))battleMode='crown';
+        else battleMode='balloon';
+      }
+    }else{if(typeof mode!=='undefined')mode='race';}
+    if(typeof selCourse!=='undefined'){
+      if(l.courseId!=null)selCourse=Math.max(0,Math.min((COURSES||[]).length-1,Number(l.courseId)||0));
+      else if(l.course&&Array.isArray(COURSES)){const idx=COURSES.findIndex(c=>c.name===l.course);if(idx>=0)selCourse=idx;}
+    }
+    if(typeof selLaps!=='undefined'&&l.laps!=null)selLaps=Number(l.laps)||3;
+    if(typeof C!=='undefined'&&l.aiCount!=null)C.AI_COUNT=Math.max(0,Math.min(15,Number(l.aiCount)||0));
+    if(typeof selDiff!=='undefined'&&l.diffIndex!=null)selDiff=Number(l.diffIndex)||1;
+    if(typeof selSpeed!=='undefined'&&l.speedIndex!=null)selSpeed=Number(l.speedIndex)||1;
+    if(typeof selWidth!=='undefined'&&l.widthIndex!=null)selWidth=Number(l.widthIndex)||1;
+    if(typeof balloonStart!=='undefined'&&l.balloons!=null)balloonStart=Number(l.balloons)||3;
+    if(typeof enabledItems!=='undefined'&&typeof ITEM_BY_KEY!=='undefined'&&l.items){
+      const txt=String(l.items);
+      const allKeys=Object.keys(ITEM_BY_KEY);
+      if(/no items/i.test(txt))enabledItems=[];
+      else if(/boosts only/i.test(txt))enabledItems=['boost'];
+      else if(/all/i.test(txt))enabledItems=allKeys.slice();
+      else if(/focus/i.test(txt)){const nm=txt.replace(/ focus$/i,'');const found=allKeys.find(k=>(ITEM_BY_KEY[k].name||k)===nm);if(found)enabledItems=[found];}
+    }
+  }catch(e){}
+}
+function ndStartLocalMatch(m){
+  try{
+    const lobbyId=currentLobbyId;
+    window.ND_ONLINE_MATCH={lobbyId:lobbyId,lobbyName:(m&&m.name)||'Online lobby'};
+    if(fbDb&&lobbyId){fbDb.ref(ND_ROOM+'/'+lobbyId+'/players/'+clientId).update({status:'in match',lastSeen:ndServerTime()});fbDb.ref(ND_ROOM+'/'+lobbyId+'/matchState').set('in match');}
+    const sc=document.getElementById('onlineScreen');if(sc)sc.classList.add('hide');
+    ndApplyLobbyMatchSettings(m||{});
+    if(typeof renderMenu==='function')renderMenu();
+    const pb=document.getElementById('pauseBtn');if(pb)pb.innerHTML='☰ ONLINE';
+    if(typeof startGame==='function')startGame();
+  }catch(e){ndRenderHub(true);}
+}
 function ndRenderSpectate(cat,lobbyId,refresh){ndCategory=cat||'all';if(!fbDb&&!refresh){ndRequireOnline();return;}const cats=['all','race','battle'];const list=ndActiveLobbies(ndCategory).filter(l=>String(l.spectate||'Allowed')!=='Off');let body='';if(lobbyId){const l=list.find(x=>String(x.id)===String(lobbyId))||lobbies.find(x=>String(x.id)===String(lobbyId));if(l){if(currentLobbyId!==l.id)ndSetPlayer(l.id,'spectating');ND.stats.spectated=(ND.stats.spectated||0)+1;ndSave();const players=ndPlayers(l);ndCamera=Math.min(ndCamera,Math.max(0,players.length-1));const cam=players[ndCamera];body='<div class="onCard"><div class="onTitle">SPECTATING: '+ndEsc(l.name)+'</div><div class="onText">This tracks the real online lobby roster and chat. Full race-car spectating needs a gameplay server later.</div><div class="onBillboard" style="margin-top:10px;border:1px solid rgba(255,45,149,.35);border-radius:14px;padding:16px;background:linear-gradient(135deg,rgba(255,45,149,.16),rgba(0,229,255,.10));text-align:center"><div class="onIcon">📺</div><div class="onName">CAMERA: '+ndEsc(cam?cam.name:'No players in lobby')+'</div><div class="onSub">'+ndEsc(cam?(cam.status||'online'):'Waiting for a real player')+'</div></div><button class="onMiniBtn" data-prev="1">◀ PLAYER</button><button class="onMiniBtn" data-next="1">PLAYER ▶</button><button class="ghost" data-room="'+ndEsc(l.id)+'">OPEN LOBBY ROOM</button></div>';}}
   body+= '<div class="onRow" style="justify-content:center;margin:8px 0">'+cats.map(c=>'<button class="onMiniBtn '+(ndCategory===c?'sel':'')+'" data-cat="'+c+'">'+c.toUpperCase()+'</button>').join('')+'</div><div class="onList">'+(list.map(l=>'<div class="onListItem"><div><div class="onName">📺 '+ndEsc(l.name)+'</div><div class="onSub">'+ndEsc(l.mode)+' · '+ndPlayers(l).length+' player(s) · creator '+ndEsc(l.creator)+'</div><span class="onTag">'+ndEsc(l.course||'Vote')+'</span><span class="onTag">seen '+ndAge(l.lastSeen)+'</span></div><button class="onMiniBtn sel" data-watch="'+ndEsc(l.id)+'">WATCH</button></div>').join('')||'<div class="onCard">No real spectatable lobbies found.</div>')+'</div><button class="ghost onBack" data-back="1">← ONLINE HOME</button>';
   ndShow(ndHeader('SPECTATE ONLINE LOBBIES','Only real connected lobbies appear here. No fake match list is generated.')+body,'spectate',lobbyId||'');
   document.querySelectorAll('#onlineScreen [data-cat]').forEach(b=>b.onclick=()=>ndRenderSpectate(b.getAttribute('data-cat')));document.querySelectorAll('#onlineScreen [data-watch]').forEach(b=>b.onclick=()=>ndRenderSpectate(ndCategory,b.getAttribute('data-watch')));const prev=document.querySelector('#onlineScreen [data-prev]');if(prev)prev.onclick=()=>{const l=lobbies.find(x=>String(x.id)===String(lobbyId));const n=Math.max(1,ndPlayers(l).length);ndCamera=(ndCamera+n-1)%n;ndRenderSpectate(ndCategory,lobbyId);};const next=document.querySelector('#onlineScreen [data-next]');if(next)next.onclick=()=>{const l=lobbies.find(x=>String(x.id)===String(lobbyId));const n=Math.max(1,ndPlayers(l).length);ndCamera=(ndCamera+1)%n;ndRenderSpectate(ndCategory,lobbyId);};const room=document.querySelector('#onlineScreen [data-room]');if(room)room.onclick=()=>ndRenderLobbyRoom(room.getAttribute('data-room'));document.querySelector('#onlineScreen [data-back]').onclick=ndRenderHub;}
-function ndRenderMakeLobby(error){if(!fbDb){ndRequireOnline();return;}const courses=ndCourses(), itemOptions=['Balanced items','Boosts only','No items','All race items','All battle items'].concat(ndItemNames().slice(0,5).map(x=>x+' focus'));ndShow(ndHeader('MAKE LOBBY','Create a real online lobby record that other computers can find.')+(error?'<div class="onError">'+ndEsc(error)+'</div>':'')+
-  '<div class="onSplit"><div class="onCard"><label class="onLabel">Lobby name</label><input class="onInput" id="onLobbyName" maxlength="24" placeholder="Clean lobby name"><label class="onLabel">Mode</label><select class="onSelect" id="onLobbyMode"><option>Race</option><option>Balloon Battle</option><option>Bounty Battle</option><option>Platform Battle</option></select><label class="onLabel">Course rules</label><select class="onSelect" id="onCourseMode"><option>Everyone votes</option><option>Host picks</option><option>Random rotation</option></select><label class="onLabel">Course / arena</label><select class="onSelect" id="onCourse">'+ndCourseOptions(0)+'</select></div><div class="onCard"><label class="onLabel">Items</label><select class="onSelect" id="onItems">'+itemOptions.map(x=>'<option>'+ndEsc(x)+'</option>').join('')+'</select><label class="onLabel">Visibility</label><select class="onSelect" id="onVisibility"><option>Public</option><option>Friends</option><option>Beginner</option></select><label class="onLabel">Spectators</label><select class="onSelect" id="onSpectators"><option>Allowed</option><option>Friends only</option><option>Off</option></select><label class="onLabel">How this lobby works</label><textarea class="onTextArea" id="onHow" maxlength="180" placeholder="Clean chat, vote courses, no rude names..."></textarea></div></div><button id="onCreateLobby">CREATE REAL LOBBY</button><button class="ghost onBack" data-back="1">← ONLINE HOME</button>','make');
-  document.getElementById('onCreateLobby').onclick=()=>{const nm=ndValidate(document.getElementById('onLobbyName').value,'Lobby name',24,false);if(!nm.ok)return ndRenderMakeLobby(nm.msg);const hw=ndValidate(document.getElementById('onHow').value,'Lobby rules',180,true);if(!hw.ok)return ndRenderMakeLobby(hw.msg);const course=ndCourses().find(c=>String(c.id)===document.getElementById('onCourse').value)||ndCourses()[0];const id=fbDb.ref(ND_ROOM).push().key;const lobby={name:nm.value,creator:ND.accountName||'PLAYER',mode:document.getElementById('onLobbyMode').value,category:ndModeCategory(document.getElementById('onLobbyMode').value),courseMode:document.getElementById('onCourseMode').value,course:course?course.name:'Vote',items:document.getElementById('onItems').value,visibility:document.getElementById('onVisibility').value,spectate:document.getElementById('onSpectators').value,how:hw.value||'Clean chat, fair play, host rules shown here.',createdAt:ndServerTime(),lastSeen:ndServerTime(),votes:{},garage:{}};fbDb.ref(ND_ROOM+'/'+id).set(lobby).then(()=>{ND.stats.lobbiesMade=(ND.stats.lobbiesMade||0)+1;ND.lastLobby=id;ndSave();ndSetPlayer(id,'hosting');fbDb.ref(ND_ROOM+'/'+id+'/chat').push({who:'SYSTEM',text:'Safe chat is on.',ts:ndServerTime()});ndRenderLobbyRoom(id,'Lobby created online.');}).catch(e=>ndRenderMakeLobby(e&&e.message?e.message:String(e)));};document.querySelector('#onlineScreen [data-back]').onclick=ndRenderHub;}
-function ndRenderFindLobby(cat,refresh){ndLobbyCategory=cat||'all';if(!fbDb&&!refresh){ndRequireOnline();return;}const cats=['all','race','battle','Public','Friends','Beginner'];const lobbies2=ndActiveLobbies(ndLobbyCategory);ndShow(ndHeader('FIND LOBBY','Every card below is a real online lobby record from Firebase. Empty means no one is hosting.')+'<div class="onRow" style="justify-content:center">'+cats.map(c=>'<button class="onMiniBtn '+(ndLobbyCategory===c?'sel':'')+'" data-lcat="'+c+'">'+c.toUpperCase()+'</button>').join('')+'</div><div class="onList">'+(lobbies2.map(l=>'<div class="onListItem"><div><div class="onName">🏠 '+ndEsc(l.name)+'</div><div class="onSub">Made by '+ndEsc(l.creator)+' · '+ndEsc(l.mode)+' · '+ndEsc(l.courseMode||'Vote')+' · '+ndPlayers(l).length+' player(s)</div><div class="onSub">How it works: '+ndEsc(l.how||'Clean play.')+'</div><span class="onTag">'+ndEsc(l.items||'Items')+'</span><span class="onTag">Spectate: '+ndEsc(l.spectate||'Allowed')+'</span><span class="onTag">seen '+ndAge(l.lastSeen)+'</span></div><div><button class="onMiniBtn sel" data-join="'+ndEsc(l.id)+'">JOIN</button><button class="onMiniBtn" data-spec="'+ndEsc(l.id)+'">SPECTATE</button></div></div>').join('')||'<div class="onCard">No real online lobbies found. No fake lobbies are shown.</div>')+'</div><button class="ghost onBack" data-back="1">← ONLINE HOME</button>','find');document.querySelectorAll('#onlineScreen [data-lcat]').forEach(b=>b.onclick=()=>ndRenderFindLobby(b.getAttribute('data-lcat')));document.querySelectorAll('#onlineScreen [data-join]').forEach(b=>b.onclick=()=>ndRenderLobbyRoom(b.getAttribute('data-join')));document.querySelectorAll('#onlineScreen [data-spec]').forEach(b=>b.onclick=()=>ndRenderSpectate('all',b.getAttribute('data-spec')));document.querySelector('#onlineScreen [data-back]').onclick=ndRenderHub;}
-function ndRenderLobbyRoom(id,msg,refresh){const l=lobbies.find(x=>String(x.id)===String(id));if(!l&&!refresh)return ndRenderFindLobby('all');if(!l)return;ND.lastLobby=id;ndSave();if(currentLobbyId!==id)ndSetPlayer(id,(l.creator===ND.accountName?'hosting':'in lobby'));const players=ndPlayers(l), chats=ndChats(l).slice(-18).map(m=>'<div class="onMsg"><b>'+ndEsc(m.who)+':</b> '+ndEsc(m.text)+'</div>').join('')||'<div class="onTiny">No messages yet.</div>';const garage=Object.values(l.garage||{}).map(g=>'<div class="onCarSpot"><div class="onIcon">🏎️</div><div class="onName" style="font-size:9px">'+ndEsc(g.car)+'</div><div class="onTiny">by '+ndEsc(g.owner)+'</div></div>').join('')||'<div class="onTiny">No custom cars placed yet.</div>';const cars=ndBuiltCustomCars();const carOpts=cars.map((c,i)=>'<option value="'+i+'">'+ndEsc(c.name||('CUSTOM '+(i+1)))+'</option>').join('');const courseVotes=ndCourses().slice(0,6).map(c=>'<button class="onMiniBtn" data-vote="'+c.id+'">'+ndEsc(c.name)+' <span class="onTag">'+((l.votes&&l.votes[c.name])||0)+'</span></button>').join('');const roster=players.map(p=>'<div class="onListItem"><div><div class="onName">👤 '+ndEsc(p.name)+'</div><div class="onSub">'+ndEsc(p.status||'online')+' · '+ndEsc(p.car||'kart')+' · seen '+ndAge(p.lastSeen)+'</div></div></div>').join('')||'<div class="onTiny">No players connected yet.</div>';
-  ndShow(ndHeader('LOBBY ROOM',msg||'Inside the lobby: real roster, course vote, safe chat, and custom car parking.')+
-    '<div class="onCard"><div class="onName">🏠 '+ndEsc(l.name)+'</div><div class="onSub">Creator: '+ndEsc(l.creator)+' · Mode: '+ndEsc(l.mode)+' · Course: '+ndEsc(l.course)+' · Items: '+ndEsc(l.items)+'</div><div class="onSub">How it works: '+ndEsc(l.how)+'</div></div>'+ 
-    '<div class="onSplit"><div class="onCard"><div class="onTitle">REAL ROSTER</div><div class="onList">'+roster+'</div><button data-start="1">START LOCAL TEST</button><button class="ghost" data-specLobby="'+ndEsc(l.id)+'">SPECTATE</button></div><div class="onCard"><div class="onTitle">COURSE VOTE</div><div class="onTiny">Vote here if the lobby uses voting, Smash-style.</div><div class="onRow">'+courseVotes+'</div></div></div>'+ 
+function ndRenderMakeLobby(error){
+  if(!fbDb){ndRequireOnline();return;}
+  const courses=ndCourses(), itemOptions=['Balanced items','Boosts only','No items','All race items','All battle items'].concat(ndItemNames().slice(0,5).map(x=>x+' focus'));
+  const opt=(arr,sel)=>arr.map(v=>'<option value="'+v+'" '+(String(v)===String(sel)?'selected':'')+'>'+v+'</option>').join('');
+  ndShow(ndHeader('MAKE LOBBY','Create a real online lobby record that other computers can find. The host chooses the match setup before everyone joins.')+(error?'<div class="onError">'+ndEsc(error)+'</div>':'')+
+  '<div class="onSplit"><div class="onCard"><label class="onLabel">Lobby name</label><input class="onInput" id="onLobbyName" maxlength="24" placeholder="Clean lobby name"><label class="onLabel">Mode</label><select class="onSelect" id="onLobbyMode"><option>Race</option><option>Balloon Battle</option><option>Bounty Battle</option><option>Infection Battle</option><option>Platform Battle</option><option>Juggernaut Battle</option></select><label class="onLabel">Course rules</label><select class="onSelect" id="onCourseMode"><option>Everyone votes</option><option>Host picks</option><option>Random rotation</option></select><label class="onLabel">Course / arena</label><select class="onSelect" id="onCourse">'+ndCourseOptions(0)+'</select><label class="onLabel">Laps</label><select class="onSelect" id="onLaps">'+opt([1,2,3,5,7],3)+'</select></div>'+ 
+  '<div class="onCard"><label class="onLabel">Items</label><select class="onSelect" id="onItems">'+itemOptions.map(x=>'<option>'+ndEsc(x)+'</option>').join('')+'</select><label class="onLabel">Game speed</label><select class="onSelect" id="onSpeed"><option value="0">Cruise</option><option value="1" selected>Normal</option><option value="2">Turbo</option><option value="3">Insane</option></select><label class="onLabel">Road width</label><select class="onSelect" id="onWidth"><option value="0">Thin</option><option value="1" selected>Normal</option><option value="2">Wide</option></select><label class="onLabel">AI opponents</label><select class="onSelect" id="onAi">'+opt([0,1,2,3,4,5,6,8,10,12,15],4)+'</select><label class="onLabel">AI difficulty</label><select class="onSelect" id="onDiff"><option value="0">Easy</option><option value="1" selected>Normal</option><option value="2">Hard</option><option value="3">Ace</option></select></div></div>'+ 
+  '<div class="onSplit"><div class="onCard"><label class="onLabel">Max players in the match</label><select class="onSelect" id="onMaxMatch">'+opt([2,3,4,6,8,10,12],8)+'</select><label class="onLabel">Max players in waiting place / lobby</label><select class="onSelect" id="onMaxLobby">'+opt([4,6,8,10,12,16,20,24],16)+'</select><label class="onLabel">Balloons each</label><select class="onSelect" id="onBalloons">'+opt([3,5],3)+'</select><div class="onWarn">Waiting place can be bigger than the match, so extra players can chat, vote, park cars, or spectate.</div></div>'+ 
+  '<div class="onCard"><label class="onLabel">Visibility</label><select class="onSelect" id="onVisibility"><option>Public</option><option>Friends</option><option>Beginner</option></select><label class="onLabel">Spectators</label><select class="onSelect" id="onSpectators"><option>Allowed</option><option>Friends only</option><option>Off</option></select><label class="onLabel">How this lobby works</label><textarea class="onTextArea" id="onHow" maxlength="180" placeholder="Clean chat, vote courses, no rude names..."></textarea></div></div><button id="onCreateLobby">CREATE REAL LOBBY</button><button class="ghost onBack" data-back="1">← ONLINE HOME</button>','make');
+  document.getElementById('onCreateLobby').onclick=()=>{
+    const nm=ndValidate(document.getElementById('onLobbyName').value,'Lobby name',24,false);if(!nm.ok)return ndRenderMakeLobby(nm.msg);
+    const hw=ndValidate(document.getElementById('onHow').value,'Lobby rules',180,true);if(!hw.ok)return ndRenderMakeLobby(hw.msg);
+    const maxMatch=Number(document.getElementById('onMaxMatch').value)||8, maxLobby=Number(document.getElementById('onMaxLobby').value)||16;
+    if(maxLobby<maxMatch)return ndRenderMakeLobby('The waiting place max must be at least as big as the match max.');
+    const course=ndCourses().find(c=>String(c.id)===document.getElementById('onCourse').value)||ndCourses()[0];
+    const id=fbDb.ref(ND_ROOM).push().key;
+    const modeVal=document.getElementById('onLobbyMode').value;
+    const lobby={name:nm.value,creator:ND.accountName||'PLAYER',mode:modeVal,category:ndModeCategory(modeVal),courseMode:document.getElementById('onCourseMode').value,course:course?course.name:'Vote',courseId:course?course.id:0,laps:Number(document.getElementById('onLaps').value)||3,items:document.getElementById('onItems').value,speedIndex:Number(document.getElementById('onSpeed').value)||1,widthIndex:Number(document.getElementById('onWidth').value)||1,aiCount:Number(document.getElementById('onAi').value)||0,diffIndex:Number(document.getElementById('onDiff').value)||1,balloons:Number(document.getElementById('onBalloons').value)||3,maxMatchPlayers:maxMatch,maxLobbyPlayers:maxLobby,matchState:'waiting',visibility:document.getElementById('onVisibility').value,spectate:document.getElementById('onSpectators').value,how:hw.value||'Clean chat, fair play, host rules shown here.',createdAt:ndServerTime(),lastSeen:ndServerTime(),votes:{},garage:{}};
+    fbDb.ref(ND_ROOM+'/'+id).set(lobby).then(()=>{ND.stats.lobbiesMade=(ND.stats.lobbiesMade||0)+1;ND.lastLobby=id;ndSave();ndSetPlayer(id,'hosting');fbDb.ref(ND_ROOM+'/'+id+'/chat').push({who:'SYSTEM',text:'Safe chat is on. Match max: '+maxMatch+', waiting place max: '+maxLobby+'.',ts:ndServerTime()});ndRenderLobbyRoom(id,'Lobby created online.');}).catch(e=>ndRenderMakeLobby(e&&e.message?e.message:String(e)));
+  };
+  document.querySelector('#onlineScreen [data-back]').onclick=ndRenderHub;
+}
+function ndRenderFindLobby(cat,refresh){
+  ndLobbyCategory=cat||'all';
+  if(!fbDb&&!refresh){ndRequireOnline();return;}
+  const cats=['all','race','battle','Public','Friends','Beginner'];
+  const lobbies2=ndActiveLobbies(ndLobbyCategory);
+  ndShow(ndHeader('FIND LOBBY','Every card below is a real online lobby record from Firebase. Empty means no one is hosting.')+'<div class="onRow" style="justify-content:center">'+cats.map(c=>'<button class="onMiniBtn '+(ndLobbyCategory===c?'sel':'')+'" data-lcat="'+c+'">'+c.toUpperCase()+'</button>').join('')+'</div><div class="onList">'+(lobbies2.map(l=>{const pl=ndPlayers(l).length,maxL=l.maxLobbyPlayers||16,maxM=l.maxMatchPlayers||8,full=pl>=maxL;return '<div class="onListItem"><div><div class="onName">🏠 '+ndEsc(l.name)+(full?' <span class="onTag">FULL</span>':'')+'</div><div class="onSub">Made by '+ndEsc(l.creator)+' · '+ndEsc(l.mode)+' · '+ndEsc(l.courseMode||'Vote')+' · waiting '+pl+'/'+ndEsc(maxL)+' · match max '+ndEsc(maxM)+'</div><div class="onSub">How it works: '+ndEsc(l.how||'Clean play.')+'</div><span class="onTag">'+ndEsc(l.items||'Items')+'</span><span class="onTag">Laps: '+ndEsc(l.laps||3)+'</span><span class="onTag">Spectate: '+ndEsc(l.spectate||'Allowed')+'</span><span class="onTag">seen '+ndAge(l.lastSeen)+'</span></div><div><button class="onMiniBtn sel" data-join="'+ndEsc(l.id)+'">JOIN</button><button class="onMiniBtn" data-spec="'+ndEsc(l.id)+'">SPECTATE</button></div></div>'}).join('')||'<div class="onCard">No real online lobbies found. No fake lobbies are shown.</div>')+'</div><button class="ghost onBack" data-back="1">← ONLINE HOME</button>','find');
+  document.querySelectorAll('#onlineScreen [data-lcat]').forEach(b=>b.onclick=()=>ndRenderFindLobby(b.getAttribute('data-lcat')));
+  document.querySelectorAll('#onlineScreen [data-join]').forEach(b=>b.onclick=()=>ndRenderLobbyRoom(b.getAttribute('data-join')));
+  document.querySelectorAll('#onlineScreen [data-spec]').forEach(b=>b.onclick=()=>ndRenderSpectate('all',b.getAttribute('data-spec')));
+  document.querySelector('#onlineScreen [data-back]').onclick=ndRenderHub;
+}
+function ndRenderLobbyRoom(id,msg,refresh){
+  const l=lobbies.find(x=>String(x.id)===String(id));
+  if(!l&&!refresh)return ndRenderFindLobby('all');
+  if(!l)return;
+  const beforePlayers=ndPlayers(l), maxLobby=Number(l.maxLobbyPlayers||16), maxMatch=Number(l.maxMatchPlayers||8);
+  const alreadyHere=currentLobbyId===id||beforePlayers.some(p=>p.clientId===clientId||(p.name&&p.name===ND.accountName&&ND.accountName!=='PLAYER'));
+  if(!alreadyHere&&maxLobby&&beforePlayers.length>=maxLobby){
+    return ndShow(ndHeader('LOBBY FULL','This waiting place is full. Try another lobby or spectate if allowed.')+'<div class="onCard"><div class="onName">🏠 '+ndEsc(l.name)+'</div><div class="onSub">Waiting place: '+beforePlayers.length+'/'+maxLobby+' · Match max: '+maxMatch+'</div><button class="ghost" data-find="1">← FIND LOBBIES</button></div>','full',id),document.querySelector('#onlineScreen [data-find]').onclick=()=>ndRenderFindLobby(ndLobbyCategory);
+  }
+  ND.lastLobby=id;ndSave();
+  if(currentLobbyId!==id)ndSetPlayer(id,(l.creator===ND.accountName?'hosting':'in lobby'));
+  const players=ndPlayers(l), playerCount=players.length;
+  const chats=ndChats(l).slice(-18).map(m=>'<div class="onMsg"><b>'+ndEsc(m.who)+':</b> '+ndEsc(m.text)+'</div>').join('')||'<div class="onTiny">No messages yet.</div>';
+  const garage=Object.values(l.garage||{}).map(g=>'<div class="onCarSpot"><div class="onIcon">🏎️</div><div class="onName" style="font-size:9px">'+ndEsc(g.car)+'</div><div class="onTiny">by '+ndEsc(g.owner)+'</div></div>').join('')||'<div class="onTiny">No custom cars placed yet.</div>';
+  const cars=ndBuiltCustomCars();
+  const carOpts=cars.map((c,i)=>'<option value="'+i+'">'+ndEsc(c.name||('CUSTOM '+(i+1)))+'</option>').join('');
+  const courseVotes=ndCourses().slice(0,6).map(c=>'<button class="onMiniBtn" data-vote="'+c.id+'">'+ndEsc(c.name)+' <span class="onTag">'+((l.votes&&l.votes[c.name])||0)+'</span></button>').join('');
+  const roster=players.map(p=>'<div class="onListItem"><div><div class="onName">👤 '+ndEsc(p.name)+'</div><div class="onSub">'+ndEsc(p.status||'online')+' · '+ndEsc(p.car||'kart')+' · seen '+ndAge(p.lastSeen)+'</div></div></div>').join('')||'<div class="onTiny">No players connected yet.</div>';
+  const settings='<span class="onTag">Waiting '+playerCount+'/'+maxLobby+'</span><span class="onTag">Match max '+maxMatch+'</span><span class="onTag">Laps '+ndEsc(l.laps||3)+'</span><span class="onTag">AI '+ndEsc(l.aiCount||0)+'</span><span class="onTag">Speed '+['Cruise','Normal','Turbo','Insane'][Number(l.speedIndex||1)]+'</span><span class="onTag">State: '+ndEsc(l.matchState||'waiting')+'</span>';
+  ndShow(ndHeader('LOBBY ROOM',msg||'Inside the lobby: real roster, match settings, course vote, safe chat, and custom car parking.')+
+    '<div class="onCard"><div class="onName">🏠 '+ndEsc(l.name)+'</div><div class="onSub">Creator: '+ndEsc(l.creator)+' · Mode: '+ndEsc(l.mode)+' · Course: '+ndEsc(l.course)+' · Items: '+ndEsc(l.items)+'</div><div class="onSub">How it works: '+ndEsc(l.how)+'</div><div style="margin-top:8px">'+settings+'</div></div>'+ 
+    '<div class="onSplit"><div class="onCard"><div class="onTitle">REAL ROSTER</div><div class="onList">'+roster+'</div><button data-start="1">START MATCH WITH THESE SETTINGS</button><button class="ghost" data-specLobby="'+ndEsc(l.id)+'">SPECTATE</button></div><div class="onCard"><div class="onTitle">COURSE VOTE</div><div class="onTiny">Vote here if the lobby uses voting, Smash-style.</div><div class="onRow">'+courseVotes+'</div></div></div>'+ 
     '<div class="onSplit"><div class="onCard"><div class="onTitle">CUSTOM CAR PARKING</div><div class="onGarage">'+garage+'</div>'+(cars.length?'<label class="onLabel">Place one of your custom cars</label><select class="onSelect" id="onCarPick">'+carOpts+'</select><button id="onPlaceCar">PLACE CAR</button>':'<div class="onWarn">Build a custom car in the workshop first, then you can park it here.</div>')+'</div><div class="onCard"><div class="onTitle">SAFE CHAT</div><div class="onChat">'+chats+'</div><div class="onRow" style="margin-top:8px">'+cannedChat.map((c,i)=>'<button class="onMiniBtn" data-canned="'+i+'">'+ndEsc(c)+'</button>').join('')+'</div><div class="onRow"><input class="onInput" id="onChatInput" maxlength="90" placeholder="Type clean chat only"><button id="onSendChat">SEND</button></div><div id="onChatErr"></div></div></div>'+ 
-    '<button class="ghost onBack" data-find="1">← FIND LOBBIES</button><button class="ghost onBack" data-hub="1">ONLINE HOME</button><button class="ghost onBack" data-leave="1">LEAVE</button>','room',id);
-  document.querySelectorAll('#onlineScreen [data-vote]').forEach(b=>b.onclick=()=>{const c=ndCourses().find(x=>String(x.id)===b.getAttribute('data-vote'));if(!c)return;fbDb.ref(ND_ROOM+'/'+id+'/votes/'+c.name).transaction(n=>(n||0)+1);});const place=document.getElementById('onPlaceCar');if(place)place.onclick=()=>{const idx=+document.getElementById('onCarPick').value,car=cars[idx];if(!car)return;fbDb.ref(ND_ROOM+'/'+id+'/garage').push({owner:ND.accountName||'PLAYER',car:car.name||'CUSTOM',ts:ndServerTime()});ND.stats.carsPlaced=(ND.stats.carsPlaced||0)+1;ndSave();};document.querySelectorAll('#onlineScreen [data-canned]').forEach(b=>b.onclick=()=>ndAddChat(id,cannedChat[+b.getAttribute('data-canned')]));document.getElementById('onSendChat').onclick=()=>ndAddChat(id,document.getElementById('onChatInput').value);document.querySelector('#onlineScreen [data-start]').onclick=()=>ndStartLocalMatch({mode:l.mode,course:l.course});document.querySelector('#onlineScreen [data-specLobby]').onclick=()=>ndRenderSpectate('all',id);document.querySelector('#onlineScreen [data-find]').onclick=()=>ndRenderFindLobby(ndLobbyCategory);document.querySelector('#onlineScreen [data-hub]').onclick=ndRenderHub;document.querySelector('#onlineScreen [data-leave]').onclick=()=>{ndLeaveLobby();ndRenderFindLobby('all');};}
+    '<button class="ghost onBack" data-find="1">← FIND LOBBIES</button><button class="ghost onBack" data-hub="1">ONLINE HOME</button><button class="ghost onBack" data-leave="1">LEAVE LOBBY</button>','room',id);
+  document.querySelectorAll('#onlineScreen [data-vote]').forEach(b=>b.onclick=()=>{const c=ndCourses().find(x=>String(x.id)===b.getAttribute('data-vote'));if(!c)return;fbDb.ref(ND_ROOM+'/'+id+'/votes/'+c.name).transaction(n=>(n||0)+1);});
+  const place=document.getElementById('onPlaceCar');if(place)place.onclick=()=>{const idx=+document.getElementById('onCarPick').value,car=cars[idx];if(!car)return;fbDb.ref(ND_ROOM+'/'+id+'/garage').push({owner:ND.accountName||'PLAYER',car:car.name||'CUSTOM',ts:ndServerTime()});ND.stats.carsPlaced=(ND.stats.carsPlaced||0)+1;ndSave();};
+  document.querySelectorAll('#onlineScreen [data-canned]').forEach(b=>b.onclick=()=>ndAddChat(id,cannedChat[+b.getAttribute('data-canned')]));
+  document.getElementById('onSendChat').onclick=()=>ndAddChat(id,document.getElementById('onChatInput').value);
+  document.querySelector('#onlineScreen [data-start]').onclick=()=>ndStartLocalMatch(l);
+  document.querySelector('#onlineScreen [data-specLobby]').onclick=()=>ndRenderSpectate('all',id);
+  document.querySelector('#onlineScreen [data-find]').onclick=()=>ndRenderFindLobby(ndLobbyCategory);
+  document.querySelector('#onlineScreen [data-hub]').onclick=ndRenderHub;
+  document.querySelector('#onlineScreen [data-leave]').onclick=()=>{ndLeaveLobby();ndRenderFindLobby('all');};
+}
 function ndAddChat(id,text){const v=ndValidate(text,'Chat message',90,false);const err=document.getElementById('onChatErr');if(!v.ok){if(err)err.innerHTML='<div class="onError">'+ndEsc(v.msg)+'</div>';return;}if(!fbDb)return;fbDb.ref(ND_ROOM+'/'+id+'/chat').push({who:ND.accountName||'PLAYER',text:v.value,ts:ndServerTime()});}
 function ndFriendActivity(name){const low=String(name).toLowerCase();for(const l of ndActiveLobbies('all')){const p=ndPlayers(l).find(x=>String(x.name).toLowerCase()===low);if(p)return {on:true,txt:'Active now: '+(p.status||'in lobby')+' '+l.name+' by '+l.creator};}return {on:false,txt:'Offline or not in a connected lobby'};}
 function ndRenderFriends(error){if(!fbDb){ndRequireOnline();return;}ND.friends=ND.friends||[];const rows=ND.friends.slice().sort((a,b)=>(b.starred?1:0)-(a.starred?1:0)||a.name.localeCompare(b.name)).map(f=>{const a=ndFriendActivity(f.name);return '<div class="onListItem"><div><div class="onName">'+(f.starred?'⭐ ':'☆ ')+ndEsc(f.name)+'</div><div class="onSub">'+ndEsc(a.txt)+'</div><span class="onTag">'+(a.on?'online':'offline/unknown')+'</span></div><button class="onMiniBtn '+(f.starred?'sel':'')+'" data-star="'+ndEsc(f.name)+'">'+(f.starred?'STARRED':'STAR')+'</button></div>';}).join('');ndShow(ndHeader('FRIENDS','Only names you add appear here. No fake friend suggestions are generated.')+(error?'<div class="onError">'+ndEsc(error)+'</div>':'')+'<div class="onCard"><label class="onLabel">Add friend by clean player name</label><div class="onRow"><input id="onFriendName" class="onInput" maxlength="18" placeholder="Friend name"><button id="onAddFriend">ADD FRIEND</button></div></div><div class="onList">'+(rows||'<div class="onCard">No friends added yet.</div>')+'</div><button class="ghost onBack" data-back="1">← ONLINE HOME</button>','friends');document.getElementById('onAddFriend').onclick=()=>{const v=ndValidate(document.getElementById('onFriendName').value,'Friend name',18,false);if(!v.ok)return ndRenderFriends(v.msg);if(!ND.friends.some(f=>f.name.toLowerCase()===v.value.toLowerCase()))ND.friends.push({name:v.value,starred:false,added:true});ndSave();ndRenderFriends();};document.querySelectorAll('#onlineScreen [data-star]').forEach(b=>b.onclick=()=>{const n=b.getAttribute('data-star');const f=ND.friends.find(x=>x.name===n);if(f)f.starred=!f.starred;ndSave();ndRenderFriends();});document.querySelector('#onlineScreen [data-back]').onclick=ndRenderHub;}
@@ -5231,11 +5371,55 @@ function ndUpdateArcadeMini(){const el=document.getElementById('ndOnlineMini');i
 window.addEventListener('beforeunload',ndLeaveLobby);
 window.openOnlinePlay=ndRenderHub;
 window.NDOnlineHub={open:ndRenderHub, state:()=>ND, connect:ndConnect, lobbies:()=>lobbies};
+function ndPatchOnlinePause(){
+  const box=document.querySelector('#pause .menucard');
+  if(!box)return;
+  let wrap=document.getElementById('ndOnlinePauseActions');
+  if(!window.ND_ONLINE_MATCH){if(wrap)wrap.remove();return;}
+  if(!wrap){
+    wrap=document.createElement('div');
+    wrap.id='ndOnlinePauseActions';
+    wrap.innerHTML='<div class="seclabel">ONLINE MATCH</div><button id="ndBackToLobbyBtn">BACK TO LOBBY</button><button class="ghost" id="ndLeaveMatchBtn">LEAVE MATCH + LOBBY</button>';
+    box.insertBefore(wrap,box.children[1]||null);
+  }
+  document.getElementById('ndBackToLobbyBtn').onclick=()=>ndBackToLobbyFromMatch();
+  document.getElementById('ndLeaveMatchBtn').onclick=()=>ndLeaveOnlineMatch();
+}
+function ndBackToLobbyFromMatch(){
+  const id=(window.ND_ONLINE_MATCH&&window.ND_ONLINE_MATCH.lobbyId)||currentLobbyId;
+  window.ND_ONLINE_MATCH=null;
+  const pb=document.getElementById('pauseBtn');if(pb)pb.innerHTML='⏸ RETURN';
+  if(fbDb&&id){currentLobbyId=id;ndSetPlayer(id,'in lobby');fbDb.ref(ND_ROOM+'/'+id+'/matchState').set('waiting');}
+  if(typeof toMenu==='function')toMenu();
+  setTimeout(()=>{if(id)ndRenderLobbyRoom(id,'Back in the lobby.');else ndRenderHub(true);},60);
+}
+function ndLeaveOnlineMatch(){
+  const id=(window.ND_ONLINE_MATCH&&window.ND_ONLINE_MATCH.lobbyId)||currentLobbyId;
+  window.ND_ONLINE_MATCH=null;
+  const pb=document.getElementById('pauseBtn');if(pb)pb.innerHTML='⏸ RETURN';
+  if(fbDb&&id)fbDb.ref(ND_ROOM+'/'+id+'/matchState').set('waiting');
+  ndLeaveLobby();
+  if(typeof toMenu==='function')toMenu();
+  setTimeout(()=>ndRenderFindLobby('all',true),60);
+}
+const oldPauseGame=typeof pauseGame==='function'?pauseGame:null;
+if(oldPauseGame){window.pauseGame=function(){oldPauseGame.apply(this,arguments);ndPatchOnlinePause();};}
+const oldExitToMenu=typeof exitToMenu==='function'?exitToMenu:null;
+if(oldExitToMenu){window.exitToMenu=function(){if(window.ND_ONLINE_MATCH){ndLeaveOnlineMatch();return;}oldExitToMenu.apply(this,arguments);};}
 const oldRender=typeof renderMenu==='function'?renderMenu:null;
-if(oldRender){window.renderMenu=function(){oldRender.apply(this,arguments);ndInstallButton();ndInstallArcadeFrame();ndUpdateArcadeMini();};}
-ndEnsureScreen();ndInstallButton();ndInstallArcadeFrame();ndConnect(true);
+if(oldRender){window.renderMenu=function(){oldRender.apply(this,arguments);ndInstallButton();ndUpdateArcadeMini();const f=document.getElementById('ndArcadeFrame');if(f)f.remove();};}
+ndEnsureScreen();ndInstallButton();ndUpdateArcadeMini();
 })();
 </script>
+
+
+<style id="ndOriginalMenuRestore">
+  #menu.screen{display:grid!important;place-items:center!important;align-items:center!important;text-align:center!important;background:rgba(12,6,23,.9)!important;backdrop-filter:blur(7px)!important;padding:20px!important;}
+  #menu.screen::before{display:none!important;content:none!important;}
+  #menu .menucard{width:100%!important;max-width:680px!important;padding:8px 4px!important;border-radius:0!important;border:0!important;background:transparent!important;box-shadow:none!important;overflow:visible!important;}
+  #ndArcadeFrame{display:none!important;}
+  #onlinePlayBtn{margin-top:10px;}
+</style>
 
 </body>
 </html>
