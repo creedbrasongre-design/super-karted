@@ -393,7 +393,7 @@
    3D terrain: hills (elevation), auto-banked corners, and a
    ramp+gap jump per course. Each car has its own stats.
    ============================================================ */
-const C = { OFFROAD:0.45, FRICTION:0.985, LAPS:3, AI_COUNT:4 };
+const C = { OFFROAD:0.45, FRICTION:0, LAPS:3, AI_COUNT:4 };
 const GRAVITY=1150, LAUNCH_MIN=205, BANKGAIN=3.0, MAXBANK=0.28;
 
 /* ---------- Sound (all synthesized, no audio files) ---------- */
@@ -1608,8 +1608,8 @@ function pollGamepads(){
 }
 document.addEventListener('visibilitychange',()=>{ if(document.hidden) for(const k in keys) keys[k]=false; });
 
-const SPEEDS=[{name:'CRUISE',mult:0.8},{name:'NORMAL',mult:1.0},{name:'TURBO',mult:1.25},{name:'INSANE',mult:1.5}];
-const WIDTHS=[{name:'NARROW',mult:0.72},{name:'NORMAL',mult:1.0},{name:'WIDE',mult:1.4}];
+const SPEEDS=[{name:'CRUISE',mult:0.8},{name:'NORMAL',mult:1.0},{name:'TURBO',mult:1.25},{name:'INSANE',mult:1.5}, {name:'Too Fast',mult:2}];
+const WIDTHS=[{name:'VerySmall',mult:0.50},{name:'NARROW',mult:0.72},{name:'NORMAL',mult:1.0},{name:'WIDE',mult:1.4},{name:'Is this too large???',mult:2}];
 let selWidth=1;   // road-width choice; ignored by Expedition (always normal)
 function roadWidthMult(){ return (expedition && expedition.active) ? 1 : WIDTHS[selWidth].mult; }
 let selSpeed=1;
@@ -1617,7 +1617,8 @@ const DIFFS=[
   {name:'EASY',   spd:0.85, use:0.006},
   {name:'MEDIUM', spd:0.95, use:0.010},
   {name:'HARD',   spd:1.00, use:0.016},
-  {name:'ACE',    spd:1.06, use:0.022}
+  {name:'ACE',    spd:1.06, use:0.022},
+  {name:'PRO',    spd:1.15, use:0.040}
 ];
 let selDiff=1;
 let selLaps=3;
@@ -3672,11 +3673,11 @@ function renderMenu(){
   DIFFS.forEach((s,i)=>{ const b=document.createElement('div'); b.className='chip tog'+(i===selDiff?' sel':'');
     b.textContent=s.name; b.onclick=()=>{ selDiff=i; renderMenu(); }; dc.appendChild(b); });
   const ac=document.getElementById('aiChips'); ac.innerHTML='';
-  for(let n=1;n<=15;n++){ const b=document.createElement('div'); b.className='chip tog'+(n===C.AI_COUNT?' sel':'');
+  for(let n=1;n<=30;n++){ const b=document.createElement('div'); b.className='chip tog'+(n===C.AI_COUNT?' sel':'');
     b.textContent=n; b.onclick=()=>{ C.AI_COUNT=n; renderMenu(); }; ac.appendChild(b); }
   const lapL=document.getElementById('lapLabel'), lapc=document.getElementById('lapChips');
   lapL.style.display=isB?'none':'block'; lapc.style.display=isB?'none':'flex'; lapc.innerHTML='';
-  [1,2,3,5,7].forEach(v=>{ const b=document.createElement('div'); b.className='chip tog'+(selLaps===v?' sel':'');
+  [1,2,3,4,5,6,7,8,9,10].forEach(v=>{ const b=document.createElement('div'); b.className='chip tog'+(selLaps===v?' sel':'');
     b.textContent=v+(v===1?' lap':' laps'); b.onclick=()=>{ selLaps=v; renderMenu(); }; lapc.appendChild(b); });
   const bml=document.getElementById('bmodeLabel'), bmc=document.getElementById('bmodeChips');
   bml.style.display=isB?'block':'none'; bmc.style.display=isB?'flex':'none'; bmc.innerHTML='';
@@ -3685,7 +3686,7 @@ function renderMenu(){
   const showBalloon=isB && battleMode==='balloon';
   const bl=document.getElementById('balloonLabel'), blc=document.getElementById('balloonChips');
   bl.style.display=showBalloon?'block':'none'; blc.style.display=showBalloon?'flex':'none'; blc.innerHTML='';
-  [3,5].forEach(v=>{ const b=document.createElement('div'); b.className='chip tog'+(balloonStart===v?' sel':'');
+  [1,2,3,4,5,6,7,8,9,10].forEach(v=>{ const b=document.createElement('div'); b.className='chip tog'+(balloonStart===v?' sel':'');
     b.innerHTML=v+' '+gicon('balloon',14); b.onclick=()=>{ balloonStart=v; renderMenu(); }; blc.appendChild(b); });
 }
 function drawCoursePreview(cnv,course){
