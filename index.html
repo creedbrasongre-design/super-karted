@@ -1481,7 +1481,7 @@ function makeKart(isPlayer,idx,car){
 }
 function spawnBoxes(){
   boxes.forEach(b=>scene.remove(b.mesh)); boxes=[];
-  const len=centerline.length, rows=[0.12,0.37,0.60,0.85], perRow=4;
+  const len=centerline.length, rows=[0.12,0.37,0.60,0.85], perRow=8;
   for(const f of rows){ const i=Math.floor(f*len)%len, c=centerline[i];
     const lx=-Math.cos(c.th), lz=Math.sin(c.th), spread=ROAD_W*0.32;
     for(let k=0;k<perRow;k++){ const off=(k/(perRow-1)-0.5)*2*spread;
