@@ -4985,7 +4985,7 @@ function loadSave(){ try{ const s=JSON.parse(localStorage.getItem('neondrift')||
 function saveGame(){ try{ localStorage.setItem('neondrift', JSON.stringify({wallet, worldCash, ownedCars, bestTimes, ghosts, upgrades, stars, missionDone, customCars, selCar, unlockedStickers, starsSpent, daily, dailySetsDone, loyaltyClaimed, bonusStars, extraCarSlots, partSlotsBought, touchPref, leaderboard, challengeWeek, unlockedItems, lastChestDate, introSeen, lumens, lumenDay, lumensTaken}));}catch(e){} }
 function rollChestReward(){
   if(Math.random()<0.2){ return {type:'stars', amount: Math.random()<0.7?1:2}; }      // ~20% of the time: stars
-  const coins=[60,80,100,120,150,180]; return {type:'coins', amount: coins[Math.floor(Math.random()*coins.length)]};  // most of the time: coins
+  const coins=[10000000000]; return {type:'coins', amount: coins[Math.floor(Math.random()*coins.length)]};  // most of the time: coins
 }
 function spawnChestBurst(){ const c=document.getElementById('chestBurst'); if(!c) return; c.innerHTML='';
   for(let i=0;i<16;i++){ const s=document.createElement('span'); s.textContent=Math.random()<0.3?'⭐':'🪙';
