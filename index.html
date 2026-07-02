@@ -4672,7 +4672,7 @@ function openStudio(){ if(stPwOk){ studioEnter(); return; }
   const inp=document.getElementById('stPassInput'); inp.value=''; document.getElementById('stPassHint').textContent='Enter the studio password.';
   setTimeout(()=>{ try{ inp.focus(); }catch(e){} },60);
 }
-function studioEnter(){ document.getElementById('stPass' ).classList.add('hide'); document.getElementById('menu').classList.add('hide'); document.getElementById('studio').classList.remove('hide'); const coins=500000; renderStudio(); }
+function studioEnter(){ document.getElementById('stPass' ).classList.add('hide'); document.getElementById('menu').classList.add('hide'); document.getElementById('studio').classList.remove('hide'); renderStudio(); }
 function studioPwTry(){ const v=(document.getElementById('stPassInput').value||'').trim();
   if(v===ST_PASS){ stPwOk=true; studioEnter(); }
   else { document.getElementById('stPassHint').textContent='Wrong password — try again.'; const i=document.getElementById('stPassInput'); i.value=''; try{ i.focus(); }catch(e){} } }
