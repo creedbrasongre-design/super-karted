@@ -3166,7 +3166,7 @@ function updateKart(k,dt){
   for(const b of boxes){ if(b.alive&&!(k.item&&k.item2)&&Math.hypot(k.x-b.x,k.z-b.z)<34&&Math.abs(k.y-(b.y||0))<55){ giveItem(k); b.alive=false; b.mesh.visible=false; b.respawn=suddenDeath?1.2:4; if(k.isPlayer) AUD.pickup(); } }
   for(const p of padBoost){ if(Math.hypot(k.x-p.x,k.z-p.z)<54 && Math.abs(k.y-p.y)<55){ const was=k.boost>0; k.boost=Math.max(k.boost,0.6); k.speed=Math.min(k.st.boost,Math.max(k.speed,k.st.max)+45); if(!was&&k.isPlayer) AUD.boost(); } }
   for(const p of padOil){ if(!k.air && Math.hypot(k.x-p.x,k.z-p.z)<48 && Math.abs(k.y-p.y)<55 && k.invuln<=0 && k.spinout<=0){ k.spinout=0.7; k.invuln=1.1; if(k.isPlayer) AUD.hit(); } }
-  for(const p of padFly){ if(!k.air && Math.hypot(k.x-p.x,k.z-p.z)<84 && Math.abs(k.y-p.y)<55){ k.air=true; k.vy=545; k.gliding=2.6; k.speed=Math.max(k.speed,k.st.max*0.92); if(k.isPlayer) AUD.boost(); } }
+  for(const p of padFly){ if(!k.air && Math.hypot(k.x-p.x,k.z-p.z)<84 && Math.abs(k.y-p.y)<55){ k.air=true; k.vy=545; k.gliding=90; k.speed=Math.max(k.speed,k.st.max*0.92); if(k.isPlayer) AUD.boost(); } }
   for(const p of padKicker){ if(!k.air && k.fromKick<=0 && Math.hypot(k.x-p.x,k.z-p.z)<60 && Math.abs(k.y-p.y)<50){ k.air=true; k.vy=Math.max(k.vy,360); k.fromKick=0.9; k.kickTricked=false; if(k.isPlayer) AUD.beep(false); } }
   for(const p of padDrift){ if(k.drift && Math.hypot(k.x-p.x,k.z-p.z)<58 && Math.abs(k.y-p.y)<55){ const was=k.boost>0; k.boost=Math.max(k.boost,0.7); k.speed=Math.min(k.st.boost,Math.max(k.speed,k.st.max)+55); if(!was&&k.isPlayer) AUD.boost(); } }
   if(battleMode==='bounty'&&mode==='battle') for(const co of coins){ if(!co.alive) continue;
