@@ -1610,7 +1610,6 @@ document.addEventListener('visibilitychange',()=>{ if(document.hidden) for(const
 
 const SPEEDS=[{name:'CRUISE',mult:0.8},{name:'NORMAL',mult:1.0},{name:'TURBO',mult:1.25},{name:'INSANE',mult:1.5}, {name:'Too Fast',mult:2}];
 const WIDTHS=[{name:'VerySmall',mult:0.50},{name:'NARROW',mult:0.72},{name:'NORMAL',mult:1.0},{name:'WIDE',mult:1.4},{name:'Is this too large???',mult:2}];
-const SCALES=[{name:'VerySmall',mult:0.50},{name:'Smaller',mult:0.72},{name:'NORMAL',mult:1.0},{name:'LARGE',mult:1.5},{name:'Too Large?',mult:2}];
 let selWidth=1;   // road-width choice; ignored by Expedition (always normal)
 function roadWidthMult(){ return (expedition && expedition.active) ? 1 : WIDTHS[selWidth].mult; }
 let selSpeed=1;
@@ -3134,7 +3133,7 @@ function updateKart(k,dt){
   let drafting=false;   // slipstream: tuck in close behind another kart to build a speed bonus
   { const fx=Math.sin(k.angle), fz=Math.cos(k.angle);
     for(const o of karts){ if(o===k||o.out) continue; const dx=o.x-k.x, dz=o.z-k.z, ahead=dx*fx+dz*fz;
-      if(ahead>45 && ahead<320 && Math.abs(dx*fz-dz*fx)<100 && Math.abs(o.y-k.y)<60){ drafting=true; break; } } }
+      if(ahead>150 && ahead<450 && Math.abs(dx*fz-dz*fx)<100 && Math.abs(o.y-k.y)<60){ drafting=true; break; } } }
   if(drafting) k.draftT=Math.min(1.5,k.draftT+dt); else k.draftT=Math.max(0,k.draftT-dt*1.5);
   top*=1+Math.min(k.draftT,1.2)/1.2*0.15;   // up to +15% in the slipstream
   if(k.isPlayer && !k.towing){ const dh=document.getElementById('draftHint'); if(dh){ dh.textContent='🌀 SLIPSTREAM'; dh.style.opacity = k.draftT>0.5?Math.min(1,(k.draftT-0.5)/0.6):0; } }
@@ -4672,8 +4671,7 @@ function openStudio(){ if(stPwOk){ studioEnter(); return; }
   const inp=document.getElementById('stPassInput'); inp.value=''; document.getElementById('stPassHint').textContent='Enter the studio password.';
   setTimeout(()=>{ try{ inp.focus(); }catch(e){} },60);
 }
-function studioEnter(){ document.getElementById('stPass' ).classList.add('hide'); document.getElementById('menu').classList.add('hide'); document.getElementById('studio').classList.remove('hide'); if(Math.random()<0.2){ return {type:'stars', amount: Math.random()<0.7?1:2}; }      // ~20% of the time: stars
-  const coins=[10000000000]; return {type:'coins', amount: coins[Math.floor(Math.random()*coins.length)]}; renderStudio(); }
+function studioEnter(){ document.getElementById('stPass' ).classList.add('hide'); document.getElementById('menu').classList.add('hide'); document.getElementById('studio').classList.remove('hide'); renderStudio(); }
 function studioPwTry(){ const v=(document.getElementById('stPassInput').value||'').trim();
   if(v===ST_PASS){ stPwOk=true; studioEnter(); }
   else { document.getElementById('stPassHint').textContent='Wrong password — try again.'; const i=document.getElementById('stPassInput'); i.value=''; try{ i.focus(); }catch(e){} } }
