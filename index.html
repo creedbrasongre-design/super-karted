@@ -1615,7 +1615,7 @@ function pollGamepads(){
 }
 document.addEventListener('visibilitychange',()=>{ if(document.hidden) for(const k in keys) keys[k]=false; });
 
-const SPEEDS=[{name:'CRUISE',mult:0.8},{name:'NORMAL',mult:1.0},{name:'TURBO',mult:1.25},{name:'INSANE',mult:1.5}, {name:'Too Fast',mult:2}];
+const SPEEDS=[{name:'CRUISE',mult:0.8},{name:'NORMAL',mult:1.0},{name:'TURBO',mult:1.25},{name:'INSANE',mult:1.5}, {name:'Too fast',mult:2}, {name:'SUPER SANE',mult:3}];
 const WIDTHS=[{name:'VerySmall',mult:0.50},{name:'NARROW',mult:0.72},{name:'NORMAL',mult:1.0},{name:'WIDE',mult:1.4},{name:'Is this too large???',mult:2}];
 let selWidth=1;   // road-width choice; ignored by Expedition (always normal)
 function roadWidthMult(){ return (expedition && expedition.active) ? 1 : WIDTHS[selWidth].mult; }
@@ -1625,7 +1625,8 @@ const DIFFS=[
   {name:'MEDIUM', spd:0.95, use:0.010},
   {name:'HARD',   spd:1.00, use:0.016},
   {name:'ACE',    spd:1.06, use:0.022},
-  {name:'PRO',    spd:1.15, use:0.040}
+  {name:'PRO',    spd:1.15, use:0.040},
+  {name:'All upgrades',    spd:2.15, use:0.090}
 ];
 let selDiff=1;
 let selLaps=3;
