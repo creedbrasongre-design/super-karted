@@ -1381,7 +1381,7 @@ function clampWall(k){            // bounce off the edge: reflect velocity, keep
       if(!(k.drift&&glancing)){ vx*=0.9; vz*=0.9; }      // normal hit bleeds speed; a drift-tap keeps it
       const ns=Math.hypot(vx,vz);
       if(ns>20) k.angle=Math.atan2(vx,vz);    // face the new travel direction
-      if(k.drift&&glancing){ k.speed=Math.min(k.st.boost, ns+45); k.boost=Math.max(k.boost,0.06); if(k.isPlayer) AUD.boost(); }   // wall-tap spark
+      if(k.drift&&glancing){ k.speed=Math.min(k.st.boost, ns+45); k.boost=Math.max(k.boost,0.04); if(k.isPlayer) AUD.boost(); }   // wall-tap spark
       else { k.speed=ns; if(k.isPlayer && into>140) AUD.bump(); }
     }
   }
