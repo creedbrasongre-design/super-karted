@@ -4742,12 +4742,20 @@ let stCps=[], stCpSel=-1, stCpDrag=-1;      // checkpoints {x,z} (order = pass o
 let stSurf=[], stSurfSel=-1, stSurfDrag=-1, stSurfKind=0; const ST_SURF_KINDS=['ice','mud','turbo'];
 const ST_HOLDS=['nothing','item box','coins']; const ST_PAD_KINDS=['boost','launch','oil'];
 let stPvAng=0, stPvCenter={x:0,y:0,z:0}, stPvRad=1500;
-const ST_RANGE=6000;   // studio buildable area (world units across the canvas) — bigger tracks; old courses keep their absolute coords and just sit in a smaller part of the grid
+const ST_RANGE=12000;   // studio buildable area (world units across the canvas) — bigger tracks; old courses keep their absolute coords and just sit in a smaller part of the grid
 const ST_THEMES=[
   {name:'NEON',  sky:['#1a0b2e','#3a1466','#b3246b'], fog:0x5a1a55, road:0x2a1850, grid:[0x00e5ff,0x3a1466], postA:0x00e5ff, postB:0xff2d95, kinds:['tree','rock'],   scol:0x2ad6a0},
   {name:'SUNSET',sky:['#2a1206','#7a2f0e','#ffb347'], fog:0x8a4a1a, road:0x3a2410, grid:[0xffd23f,0x7a3f1e], postA:0xffd23f, postB:0xff7b00, kinds:['cactus','rock'], scol:0x6abf3f},
   {name:'ICE',   sky:['#06121a','#0e3a4a','#3affd0'], fog:0x0e3a4a, road:0x122c38, grid:[0x3affd0,0x1a4a5a], postA:0x3affd0, postB:0xff5edb, kinds:['tree','rock'],   scol:0x7fe6ff},
   {name:'VOID',  sky:['#0b061a','#241a55','#7a5eff'], fog:0x241a55, road:0x161038, grid:[0x7a5eff,0x2a2060], postA:0x7a5eff, postB:0x00e5ff, kinds:['rock','tree'],   scol:0xb24bff},
+  {name:'FIRE',   sky:['#120006','#3a0714','#ff174d'], fog:0x3a0714, road:0x1a050c, grid:[0xff174d,0x7a1028], postA:0xff174d, postB:0xff6b00, kinds:['rock','tree'], scol:0xff6b00},
+  {name:'JUNGLE', sky:['#03140a','#0f3a1f','#1eff6a'], fog:0x0f3a1f, road:0x071a10, grid:[0x1eff6a,0x0d5a2b], postA:0x1eff6a, postB:0x00ffd0, kinds:['rock','tree'], scol:0x1eff6a},
+  {name:'BEACH',  sky:['#071a2f','#0b6fae','#ffd36a'], fog:0x0b6fae, road:0x1c2a34, grid:[0x00d9ff,0xffd36a], postA:0x00d9ff, postB:0xfff1a8, kinds:['rock','tree'], scol:0xffd36a},
+  {name:'CITY', sky:['#050816','#10204a','#00e5ff'], fog:0x10204a, road:0x111827, grid:[0x00e5ff,0xff2d95], postA:0x00e5ff, postB:0xff2d95, kinds:['rock','tree'], scol:0x5ee7ff},
+  {name:'TOXIC', sky:['#031005','#123a0a','#b6ff00'], fog:0x123a0a, road:0x0b1608, grid:[0xb6ff00,0x2aff6a], postA:0xb6ff00, postB:0x2aff6a, kinds:['rock','tree'], scol:0x88ff00},
+  {name:'MOON', sky:['#03040a','#151a2e','#d8e6ff'], fog:0x151a2e, road:0x11131c, grid:[0xd8e6ff,0x5b6f9f], postA:0xd8e6ff, postB:0x7a5eff, kinds:['rock','rock'], scol:0xbfc7ff},
+  {name:'CRYSTAL', sky:['#08051a','#1b1466','#8affff'], fog:0x1b1466, road:0x120f2e, grid:[0x8affff,0xb24bff], postA:0x8affff, postB:0xb24bff, kinds:['rock','tree'], scol:0x9efcff},
+  {name:'STORM', sky:['#05070f','#1a2540','#6f8cff'], fog:0x1a2540, road:0x101522, grid:[0x6f8cff,0x2f3f66], postA:0x6f8cff, postB:0x00e5ff, kinds:['tree','rock'], scol:0x9fb7ff},
 ];
 const stCanvas=document.getElementById('stCanvas'), stCtx=stCanvas.getContext('2d');
 // Levels listed here are baked into the game file, so EVERY player/account gets them.
