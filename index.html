@@ -5105,7 +5105,7 @@ function showChest(preview){
   ov.style.display='grid'; }
 function maybeShowChest(){ if(lastChestDate===todayKey()) return; showChest(false); }            // auto-show once per day on load
 function openDailyReward(){ AUD&&AUD.init&&AUD.init(); showChest(lastChestDate===todayKey()); }   // menu button: claim, or preview if already claimed
-function openChest()                                                  // one open per show
+function openChest(){ if(chestReward) return;                                                     // one open per show
   const ov=document.getElementById('chestOverlay');
   if(chestPreview){                                                                               // already claimed today -> show it, no extra payout
     chestReward={type:'none'}; ov.classList.add('opened'); spawnChestBurst(); AUD&&AUD.pickup&&AUD.pickup();
