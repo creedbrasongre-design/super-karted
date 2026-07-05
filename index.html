@@ -241,6 +241,8 @@
   <div class="chips" id="itemChips"></div>
   <div class="seclabel">&#9315; Game speed</div>
   <div class="chips" id="speedChips"></div>
+  <div class="seclabel">Gravity</div>
+  <div class="chips" id="gravityChips"></div>
   <div id="widthRow"><div class="seclabel"><svg viewBox="0 0 24 24" width="14" height="14" style="vertical-align:-0.14em;color:#5effc8;filter:drop-shadow(0 0 2px #5effc8)" fill="none" stroke="#5effc8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 21l2-18M17 21l-2-18M12 4v3M12 10v3M12 17v2"/></svg> Road width</div>
   <div class="chips" id="widthChips"></div></div>
   <div class="seclabel">&#9316; AI difficulty</div>
@@ -394,7 +396,21 @@
    ramp+gap jump per course. Each car has its own stats.
    ============================================================ */
 const C = { OFFROAD:1, FRICTION:1, LAPS:3, AI_COUNT:4 };
-const LAUNCH_MIN=205, BANKGAIN=3.0, MAXBANK=0.28;
+const BASE_GRAVITY=1150, LAUNCH_MIN=205, BANKGAIN=3.0, MAXBANK=0.28;
+
+const GRAVITY_OPTIONS=[
+  {name:'SO LOW', mult:0.50},
+  {name:'LOW', mult:0.75},
+  {name:'NORMAL', mult:1.0},
+  {name:'HEAVY', mult:1.35},
+  {name:'SO HEAVY', mult:1.75}
+];
+
+let selGravity=2;
+
+function gravityValue(){
+  return BASE_GRAVITY * GRAVITY_OPTIONS[selGravity].mult;
+}
 
 /* ---------- Sound (all synthesized, no audio files) ---------- */
 const AUD={
@@ -1713,9 +1729,7 @@ document.addEventListener('visibilitychange',()=>{ if(document.hidden) for(const
 
 const SPEEDS=[{name:'CRUISE',mult:0.8},{name:'NORMAL',mult:1.0},{name:'TURBO',mult:1.25},{name:'INSANE',mult:1.5}, {name:'Too fast',mult:2}, {name:'SUPER SANE',mult:3}];
 const WIDTHS=[{name:'VerySmall',mult:0.50},{name:'NARROW',mult:0.72},{name:'NORMAL',mult:1.0},{name:'WIDE',mult:1.4},{name:'Is this too large???',mult:2}];
-const GRAVITY=[{name:'so low',mult:0.50},{name:'low',mult:2.0},{name:'NORMAL',mult:4.0},{name:'heavy',mult:5.3},{name:'so heavy',mult:7.8}];
 let selWidth=1;   // road-width choice; ignored by Expedition (always normal)
-let selGravity=2;
 function roadWidthMult(){ return (expedition && expedition.active) ? 1 : WIDTHS[selWidth].mult; }
 let selSpeed=1;
 const DIFFS=[
@@ -3313,7 +3327,7 @@ function updateKart(k,dt){
   if(mode==='battle'){
     const s=arenaSupport(k.x,k.z,k.y), overVoid=s<=VOID+1;
     if(k.isPlayer && inHollow && !k.air && !overVoid){ k._safeX=k.x; k._safeZ=k.z; k._safeY=s; }
-    if(k.air){ k.y+=k.vy*dt; k.vy-=(k.gliding>0?GRAVITY*0.30:GRAVITY)*dt; if(k.gliding>0) k.gliding-=dt;
+    if(k.air){ k.y+=k.vy*dt;k.vy-=gravityValue()*(k.gliding>0?0.30:1)*dt; if(k.gliding>0) k.gliding-=dt;
       if(!overVoid && k.y<=s){ k.y=s; k.vy=0; k.air=false; k.gliding=0; k.speed*=0.96;
         if(k.stomp){ k.stomp=false; for(const o of karts){ if(o===k||o.out||o.air)continue; if(Math.hypot(o.x-k.x,o.z-k.z)<160) hitKart(o,0.9,k); } if(k.isPlayer){ AUD.hit(); flashBanner('💥 STOMP!'); } } }
       else if(battleMode==='platform' && overVoid && k.vy<0 && k.scaffolds>0 && k.y<(k.lastGround||0)-28){ scaffoldCatch(k); }
@@ -3326,7 +3340,7 @@ function updateKart(k,dt){
   }
   let ng;
   if(tileRace){ ng=nearest(k.x,k.z); k.gi=ng.i; const s=arenaSupport(k.x,k.z,k.y); const over=s<=VOID+1;
-    if(k.air){ k.y+=k.vy*dt; k.vy-=(k.gliding>0?GRAVITY*0.30:GRAVITY)*dt; if(k.gliding>0) k.gliding-=dt;
+    if(k.air){ k.y+=k.vy*dt;k.vy-=gravityValue()*(k.gliding>0?0.30:1)*dt; if(k.gliding>0) k.gliding-=dt;
       if(!over && k.y<=s){ k.y=s; k.vy=0; k.air=false; k.gliding=0; }
       else if(k.y<FALL_LIMIT){ tileRespawn(k); } }
     else { if(arenaGap && over){ k.air=true; k.vy=0; }      // drove into a fly-over gap → fall
@@ -3335,7 +3349,7 @@ function updateKart(k,dt){
     // elevation: ride the surface, fly when launched, drop into a chasm, or land on a floating platform
     ng=nearestNear(k.x,k.z,k.y,k.gi); k.gi=ng.i; const gp=centerline[k.gi]; const plat=platTop(k.x,k.z);
     const curGap=gapAt(k.gi); const overChasm = curGap && !plat;       // above any gap with nothing under
-    if(k.air){ k.y+=k.vy*dt; k.vy-=(k.gliding>0?GRAVITY*0.30:GRAVITY)*dt; if(k.gliding>0) k.gliding-=dt;
+    if(k.air){ k.y+=k.vy*dt;k.vy-=gravityValue()*(k.gliding>0?0.30:1)*dt; if(k.gliding>0) k.gliding-=dt;
       if(plat && k.vy<=0 && k.y<=plat.y && k.y>plat.y-95){ k.y=plat.y; k.vy=0; k.air=false; k.gliding=0; k.onPlat=plat; k.stomp=false; if(k.isPlayer) AUD.boost(); }
       else if(!overChasm && k.y<=gp.y){ const gl=k.gliding>0; k.y=gp.y; k.vy=0; k.air=false; k.gliding=0; k.onPlat=null; k.speed*=(gl?0.99:0.93);
         if(k.stomp){ k.stomp=false; for(const o of karts){ if(o===k||o.out||o.air)continue; if(Math.hypot(o.x-k.x,o.z-k.z)<160) hitKart(o,0.9,k); } k.speed=Math.min(k.st.boost,k.speed+130); k.boost=Math.max(k.boost,0.4); if(k.isPlayer){ AUD.hit(); flashBanner('💥 STOMP!'); } } }
@@ -3776,13 +3790,24 @@ function renderMenu(){
   const sc=document.getElementById('speedChips'); sc.innerHTML='';
   SPEEDS.forEach((s,i)=>{ const b=document.createElement('div'); b.className='chip tog'+(i===selSpeed?' sel':'');
     b.textContent=s.name; b.onclick=()=>{ selSpeed=i; renderMenu(); }; sc.appendChild(b); });
+  const gc=document.getElementById('gravityChips');
+  if(gc){
+    gc.innerHTML='';
+    GRAVITY_OPTIONS.forEach((s,i)=>{
+      const b=document.createElement('div');
+      b.className='chip tog'+(i===selGravity?' sel':'');
+      b.textContent=s.name;
+      b.onclick=()=>{
+        selGravity=i;
+        renderMenu();
+      };
+      gc.appendChild(b);
+    });
+  }
   const wRow=document.getElementById('widthRow'); if(wRow) wRow.style.display=isB?'none':'block';   // arenas ignore road width
   const wc=document.getElementById('widthChips'); if(wc){ wc.innerHTML='';
     WIDTHS.forEach((s,i)=>{ const b=document.createElement('div'); b.className='chip tog'+(i===selWidth?' sel':'');
       b.textContent=s.name; b.onclick=()=>{ selWidth=i; renderMenu(); }; wc.appendChild(b); }); }
-  const gc=document.getElementById('gravityChips'); if(gc){ gc.innerHTML='';
-    GRAVITY.forEach((s,i)=>{ const b=document.createElement('div'); b.className='chip tog'+(i===selGravity?' sel':'');
-      b.textContent=s.name; b.onclick=()=>{ selGravity=i; renderMenu(); }; gc.appendChild(b); }); }
   const dc=document.getElementById('diffChips'); dc.innerHTML='';
   DIFFS.forEach((s,i)=>{ const b=document.createElement('div'); b.className='chip tog'+(i===selDiff?' sel':'');
     b.textContent=s.name; b.onclick=()=>{ selDiff=i; renderMenu(); }; dc.appendChild(b); });
