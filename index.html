@@ -5433,6 +5433,204 @@ requestAnimationFrame(loop);
     };
   }
 
+
+  // Online item syncing: every player creates the same thrown items/hazards locally.
+  // This keeps rockets, orbs, bananas, mines, lasers, bombs, and other item effects visible and hittable for everyone.
+  O.itemSeq = O.itemSeq || 0;
+  O.seenItems = O.seenItems || {};
+  O.pendingItems = O.pendingItems || [];
+  O.suppressItemEvent = false;
+
+  function sendOnlineItem(m){
+    if(!m || !O.active || !O.game) return;
+    if(O.role==='host') broadcast(m);
+    else send(O.hostConn, m);
+  }
+
+  function itemOwnerKart(ownerId){
+    if(!ownerId) return null;
+    if(ownerId===myId()) return player || null;
+    return (O.remoteKarts && O.remoteKarts[ownerId]) || null;
+  }
+
+  function captureItemEvent(k){
+    if(!O.active || !O.game || state!=='race' || O.suppressItemEvent) return null;
+    if(!k || k!==player || !myId()) return null;          // only broadcast this browser's human player
+    let action=null, item=null, guardKind=null;
+    if(k.laserCharges>0){ action='laser-shot'; }
+    else if(k.guardCount>0){ action='guard-shot'; guardKind=k.guardKind||'orb'; }
+    else if(k.item){ action='item'; item=k.item; }
+    else return null;
+    return {
+      t:'item',
+      owner:myId(),
+      seq:(++O.itemSeq),
+      action,
+      item,
+      guardKind,
+      x:k.x, y:k.y, z:k.z, a:k.angle,
+      sp:k.speed||0
+    };
+  }
+
+  function rememberItem(m){
+    const key=(m.owner||'')+':'+(m.seq||'');
+    if(!m.seq) return false;
+    if(O.seenItems[key]) return true;
+    O.seenItems[key]=performance.now();
+    return false;
+  }
+
+  function pruneSeenItems(){
+    const now=performance.now(), seen=O.seenItems||{};
+    Object.keys(seen).forEach(k=>{ if(now-seen[k]>30000) delete seen[k]; });
+  }
+
+  function applyOnlineItem(m){
+    if(!m || m.t!=='item' || !O.game) return;
+    if(m.owner===myId()) return;             // sender already created it locally
+    if(rememberItem(m)) return;
+    pruneSeenItems();
+    const k=itemOwnerKart(m.owner);
+    if(!k){
+      O.pendingItems.push(m);
+      if(O.pendingItems.length>24) O.pendingItems.shift();
+      return;
+    }
+    try{
+      // Snap the remote kart to the thrower's sent position for the exact launch point.
+      if(Number.isFinite(m.x)) k.x=m.x;
+      if(Number.isFinite(m.y)) k.y=m.y;
+      if(Number.isFinite(m.z)) k.z=m.z;
+      if(Number.isFinite(m.a)) k.angle=m.a;
+      if(Number.isFinite(m.sp)) k.speed=m.sp;
+      if(typeof syncMesh==='function') syncMesh(k);
+
+      O.suppressItemEvent=true;
+      if(m.action==='laser-shot'){
+        k.laserCharges=1;
+        baseUseItem(k);
+      } else if(m.action==='guard-shot'){
+        k.guardKind=m.guardKind||'orb';
+        k.guardCount=1;
+        baseUseItem(k);
+      } else {
+        k.item=m.item;
+        k.item2=null;
+        baseUseItem(k);
+      }
+    }catch(e){ console.warn('online item apply failed',e); }
+    finally{ O.suppressItemEvent=false; }
+  }
+
+  function flushPendingOnlineItems(){
+    if(!O.pendingItems || !O.pendingItems.length) return;
+    const left=[];
+    O.pendingItems.forEach(m=>{
+      if(itemOwnerKart(m.owner)) applyOnlineItem(m);
+      else left.push(m);
+    });
+    O.pendingItems=left.slice(-24);
+  }
+
+  const baseUseItem = (typeof useItem==='function') ? useItem : null;
+  if(baseUseItem){
+    useItem=function(k){
+      const evt=captureItemEvent(k);
+      const result=baseUseItem(k);
+      if(evt) sendOnlineItem(evt);
+      return result;
+    };
+  }
+
+  function handleOnlineItemMessage(m, fromPeer){
+    if(!m || m.t!=='item') return;
+    applyOnlineItem(m);
+    if(O.role==='host') relay(m, fromPeer);
+  }
+
+  // Patch incoming online messages so item throws are relayed just like kart positions.
+  const baseOnHostData = onHostData;
+  onHostData=function(m, conn){
+    if(m && m.t==='item'){ handleOnlineItemMessage(m, conn && conn.peer); return; }
+    return baseOnHostData(m, conn);
+  };
+  const baseOnGuestData = onGuestData;
+  onGuestData=function(m){
+    if(m && m.t==='item'){ applyOnlineItem(m); return; }
+    return baseOnGuestData(m);
+  };
+
+  // Add a Back to Online Room path after an online race/battle ends.
+  function onlineInfoHtml(){
+    const count=(O.players||[]).length;
+    return '<div id="onlineFinishInfo" style="border:1px solid rgba(0,229,255,.35);background:rgba(0,229,255,.08);border-radius:12px;padding:10px 12px;margin:14px auto 4px;max-width:420px;color:#eaf4ff;line-height:1.45">'+
+      '<div style="font-family:\'Press Start 2P\';font-size:11px;color:#9fe8ff;margin-bottom:7px">ONLINE MATCH</div>'+
+      '<div>Room <b style="color:#ffd23f">'+esc(O.code||'—')+'</b> · '+count+' player'+(count===1?'':'s')+'</div>'+
+      '<div style="font-size:13px;color:#cdbce6;margin-top:4px">'+esc(rulesText(O.rules))+'</div>'+
+      '</div>';
+  }
+
+  function showOnlineFinishControls(){
+    if(!O.active || !O.started) return;
+    const finish=byId('finish'), coins=byId('finishCoins'), again=byId('raceAgainBtn'), next=byId('nextRaceBtn'), menuBtn=byId('toMenuBtn');
+    if(!finish || finish.classList.contains('hide')) return;
+    let info=byId('onlineFinishInfo');
+    if(!info && coins){
+      coins.insertAdjacentHTML('afterend', onlineInfoHtml());
+      info=byId('onlineFinishInfo');
+    } else if(info){
+      info.outerHTML=onlineInfoHtml();
+    }
+    if(again) again.style.display='none';
+    if(next) next.style.display='none';
+    if(menuBtn){
+      menuBtn.style.display='';
+      menuBtn.textContent='BACK TO ONLINE ROOM';
+      menuBtn.onclick=backToOnlineRoom;
+    }
+  }
+
+  function backToOnlineRoom(){
+    O.game=false; O.started=false; O.remoteKarts={}; O.remoteStates={}; O.pendingItems=[];
+    try{ toMenu(); }catch(e){
+      try{ clearRace(); }catch(_){}
+      state='menu';
+      const f=byId('finish'); if(f) f.classList.add('hide');
+      const menu=byId('menu'); if(menu) menu.classList.remove('hide');
+      document.body.classList.remove('racing','paused','roam');
+    }
+    if(O.role==='host') broadcastLobby();
+    else if(O.hostConn && O.hostConn.open) send(O.hostConn,{t:'hello', player:localPlayer()});
+    openOnline();
+  }
+  window.backToOnlineRoom = backToOnlineRoom;
+
+  const baseFinishGame = (typeof finishGame==='function') ? finishGame : null;
+  if(baseFinishGame){
+    finishGame=function(){
+      const result=baseFinishGame.apply(this, arguments);
+      setTimeout(showOnlineFinishControls, 0);
+      return result;
+    };
+  }
+  const baseFinishBattle = (typeof finishBattle==='function') ? finishBattle : null;
+  if(baseFinishBattle){
+    finishBattle=function(){
+      const result=baseFinishBattle.apply(this, arguments);
+      setTimeout(showOnlineFinishControls, 0);
+      return result;
+    };
+  }
+
+  // When remote karts are created, try any item messages that arrived a moment early.
+  const baseSetupRemoteKarts = setupRemoteKarts;
+  setupRemoteKarts=function(){
+    const result=baseSetupRemoteKarts.apply(this, arguments);
+    flushPendingOnlineItems();
+    return result;
+  };
+
   ensureOnlineScreen();
   if(baseRenderMenu) renderMenu();
 })();
