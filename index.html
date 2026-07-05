@@ -1715,7 +1715,7 @@ const SPEEDS=[{name:'CRUISE',mult:0.8},{name:'NORMAL',mult:1.0},{name:'TURBO',mu
 const WIDTHS=[{name:'VerySmall',mult:0.50},{name:'NARROW',mult:0.72},{name:'NORMAL',mult:1.0},{name:'WIDE',mult:1.4},{name:'Is this too large???',mult:2}];
 const GRAVITY=[{name:'so low',mult:0.50},{name:'low',mult:2.0},{name:'NORMAL',mult:4.0},{name:'heavy',mult:5.3},{name:'so heavy',mult:7.8}];
 let selWidth=1;   // road-width choice; ignored by Expedition (always normal)
-let selGravity=4;
+let selGravity=2;
 function roadWidthMult(){ return (expedition && expedition.active) ? 1 : WIDTHS[selWidth].mult; }
 let selSpeed=1;
 const DIFFS=[
