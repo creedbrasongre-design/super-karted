@@ -1764,14 +1764,16 @@ function startCup(idx){ cupActive=true; timeTrial=false; cupIdx=idx; cupCourses=
 function nextCupRace(){ selCourse=cupCourses[cupRace]; customRaceBoxes=null; customRaceCoins=null; buildCourse(COURSES[selCourse]); startGame(); }
 const ITEM_DEFS=[
   {key:'boost',  emoji:'⚡',  name:'Boost',    power:0.45, rarity:1.0},
-  {key:'rocket', emoji:'🚀',  name:'Rocket',   power:0.60, rarity:0.22},
-  {key:'orb',    emoji:'🟢',  name:'Ricochet', power:0.50, rarity:0.55},
+  {key:'rocket', emoji:'🚀',  name:'Rocket',   power:0.60, rarity:0.50},
+  {key:'orb',    emoji:'🟢',  name:'Ricochet', power:0.50, rarity:1.0},
   {key:'banana', emoji:'🍌',  name:'Banana',   power:0.20, rarity:1.0},
   {key:'mine',   emoji:'💣',  name:'Mine',     power:0.55, rarity:0.45},
   {key:'shield', emoji:'🛡️', name:'Shield',   power:0.35, rarity:0.8},
   {key:'zap',    emoji:'🌩️', name:'Zap All',  power:1.00, rarity:0.06},
   {key:'triorb', emoji:'🟢³', name:'Triple Orb',    power:0.60, rarity:0.4},
   {key:'tribanana',emoji:'🍌³',name:'Triple Banana', power:0.30, rarity:0.55},
+  {key:'superbanana',emoji:'🍌¹⁰',name:'Super Banana', power:0.50, rarity:0.3},
+  {key:'superorb', emoji:'🟢¹⁰', name:'Super Orb',    power:0.70, rarity:0.3},
   {key:'laser',  emoji:'🔫',  name:'Pulse Laser',  power:0.55, rarity:0.30},
   {key:'salvo',  emoji:'🚀³', name:'Homing Salvo',  power:0.85, rarity:0.10},
   {key:'scatter',emoji:'✴️',  name:'Scatter Shot',  power:0.60, rarity:0.30},
@@ -1826,6 +1828,8 @@ const ITEM_ICONS={
   zap:{c:'#ffffff',p:'<path d="M11 2 6 11h4l-1 8 6-10h-4l2-7z" fill="currentColor" stroke="none"/>'},
   triorb:{c:'#a6ff3f',p:'<circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><circle cx="12" cy="16" r="3"/>'},
   tribanana:{c:'#ffd23f',p:'<path d="M4 8c1 4 4 6 8 6M6 5c1 4 4 6 8 6M8 3c1 4 4 6 8 6"/>'},
+  superbannana:{c:'#ffd23f',p:'<path d="M4 8c1 4 4 6 8 6M6 5c1 4 4 6 8 6M8 3c1 4 4 6 8 6"/> M4 8c1 4 4 6 8 6M6 5c1 4 4 6 8 6M8 3c1 4 4 6 8 6"/>'},
+  superorb:{c:'#a6ff3f',p:'<circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><circle cx="12" cy="16" r="3"/> <circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><circle cx="12" cy="16" r="3"/>'},
   laser:{c:'#ff2d95',p:'<rect x="3" y="10" width="6" height="4" rx="1"/><path d="M9 12h11" stroke-width="2.5"/><path d="M17 9l4 3-4 3"/>'},
   salvo:{c:'#ff9a3c',p:'<path d="M6 4c1.4 1 2 3 2 5l-1 2H5l-1-2c0-2 .6-4 2-5zM12 3c1.4 1 2 3 2 5l-1 2h-2l-1-2c0-2 .6-4 2-5zM18 4c1.4 1 2 3 2 5l-1 2h-2l-1-2c0-2 .6-4 2-5z"/>'},
   scatter:{c:'#00e5ff',p:'<circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/><circle cx="5" cy="5" r="1.6"/><circle cx="19" cy="5" r="1.6"/><circle cx="5" cy="19" r="1.6"/><circle cx="19" cy="19" r="1.6"/>'},
@@ -2015,6 +2019,7 @@ function useItem(k){
   if(!k.item) return;
   if(k.isPlayer && k.item!=='boost') AUD.fire();
   if(k.item==='triorb'||k.item==='tribanana'){ k.guardKind=k.item==='triorb'?'orb':'banana'; k.guardCount=3; }
+  if(k.item==='triorb'||k.item==='superbanana'){ k.guardKind=k.item==='superorb'?'orb':'banana'; k.guardCount=10; }
   if(k.item==='boost'){ k.boost=1.0; }
   else if(k.item==='grapple'){ grappleYank(k); }
   else if(k.item==='tow'){ startTow(k); }
