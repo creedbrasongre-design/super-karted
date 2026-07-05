@@ -1715,6 +1715,7 @@ const SPEEDS=[{name:'CRUISE',mult:0.8},{name:'NORMAL',mult:1.0},{name:'TURBO',mu
 const WIDTHS=[{name:'VerySmall',mult:0.50},{name:'NARROW',mult:0.72},{name:'NORMAL',mult:1.0},{name:'WIDE',mult:1.4},{name:'Is this too large???',mult:2}];
 const GRAVITY=[{name:'so low',mult:0.50},{name:'low',mult:2.0},{name:'NORMAL',mult:4.0},{name:'heavy',mult:5.3},{name:'so heavy',mult:7.8}];
 let selWidth=1;   // road-width choice; ignored by Expedition (always normal)
+let selGravity=4;
 function roadWidthMult(){ return (expedition && expedition.active) ? 1 : WIDTHS[selWidth].mult; }
 let selSpeed=1;
 const DIFFS=[
@@ -3779,6 +3780,9 @@ function renderMenu(){
   const wc=document.getElementById('widthChips'); if(wc){ wc.innerHTML='';
     WIDTHS.forEach((s,i)=>{ const b=document.createElement('div'); b.className='chip tog'+(i===selWidth?' sel':'');
       b.textContent=s.name; b.onclick=()=>{ selWidth=i; renderMenu(); }; wc.appendChild(b); }); }
+  const gc=document.getElementById('gravityChips'); if(gc){ gc.innerHTML='';
+    GRAVITY.forEach((s,i)=>{ const b=document.createElement('div'); b.className='chip tog'+(i===selGravity?' sel':'');
+      b.textContent=s.name; b.onclick=()=>{ selGravity=i; renderMenu(); }; gc.appendChild(b); }); }
   const dc=document.getElementById('diffChips'); dc.innerHTML='';
   DIFFS.forEach((s,i)=>{ const b=document.createElement('div'); b.className='chip tog'+(i===selDiff?' sel':'');
     b.textContent=s.name; b.onclick=()=>{ selDiff=i; renderMenu(); }; dc.appendChild(b); });
