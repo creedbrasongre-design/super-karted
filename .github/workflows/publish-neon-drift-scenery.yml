@@ -1,0 +1,118 @@
+name: Publish Neon Drift Scenery
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenery_code:
+        description: "Paste the NDCS2 scenery code copied from Neon Drift"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-neon-drift-scenery
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Open repository files
+        uses: actions/checkout@v4
+
+      - name: Update scenery-data.json
+        env:
+          SCENERY_CODE: ${{ inputs.scenery_code }}
+        run: |
+          node <<'NODE'
+          const fs = require("fs");
+
+          const code = String(process.env.SCENERY_CODE || "").trim();
+
+          if (!/^NDCS[12]/.test(code)) {
+            throw new Error(
+              "The pasted value is not a Neon Drift NDCS scenery code."
+            );
+          }
+
+          const base64 = code.replace(/^NDCS[12]/, "").replace(/\s+/g, "");
+          const decoded = Buffer.from(base64, "base64").toString("utf8");
+          const incoming = JSON.parse(decoded);
+
+          if (
+            !incoming ||
+            typeof incoming.course !== "string" ||
+            !Array.isArray(incoming.shapes)
+          ) {
+            throw new Error("The scenery code is missing its course or shapes.");
+          }
+
+          let file = {
+            v: 3,
+            updatedAt: null,
+            catalog: {
+              v: 2,
+              scenes: {},
+              models: {}
+            }
+          };
+
+          if (fs.existsSync("scenery-data.json")) {
+            try {
+              file = JSON.parse(
+                fs.readFileSync("scenery-data.json", "utf8")
+              );
+            } catch (error) {
+              console.log(
+                "The old scenery file could not be read, so a new one will be created."
+              );
+            }
+          }
+
+          if (!file || typeof file !== "object") file = {};
+          if (!file.catalog || typeof file.catalog !== "object") {
+            file.catalog = {};
+          }
+          if (
+            !file.catalog.scenes ||
+            typeof file.catalog.scenes !== "object"
+          ) {
+            file.catalog.scenes = {};
+          }
+          if (
+            !file.catalog.models ||
+            typeof file.catalog.models !== "object"
+          ) {
+            file.catalog.models = {};
+          }
+
+          file.v = 3;
+          file.catalog.v = 2;
+          file.updatedAt = new Date().toISOString();
+          file.catalog.scenes[incoming.course] = incoming.shapes;
+
+          fs.writeFileSync(
+            "scenery-data.json",
+            JSON.stringify(file, null, 2) + "\n"
+          );
+
+          console.log(
+            `Prepared ${incoming.shapes.length} scenery objects for ${incoming.course}.`
+          );
+          NODE
+
+      - name: Save scenery to the repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add scenery-data.json
+
+          if git diff --cached --quiet; then
+            echo "The scenery file already contains these changes."
+          else
+            git commit -m "Update Neon Drift course scenery"
+            git push
+          fi
