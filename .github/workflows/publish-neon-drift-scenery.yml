@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       scenery_code:
-        description: "Paste the NDCS2 scenery code copied from Neon Drift"
+        description: "Paste the compressed NDCS3 scenery code copied from Neon Drift"
         required: true
         type: string
 
@@ -21,87 +21,84 @@ jobs:
 
     steps:
       - name: Open repository files
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Update scenery-data.json
+      - name: Decode and update scenery-data.json
         env:
           SCENERY_CODE: ${{ inputs.scenery_code }}
         run: |
           node <<'NODE'
-          const fs = require("fs");
+          const fs = require('fs');
+          const zlib = require('zlib');
 
-          const code = String(process.env.SCENERY_CODE || "").trim();
-
-          if (!/^NDCS[12]/.test(code)) {
-            throw new Error(
-              "The pasted value is not a Neon Drift NDCS scenery code."
-            );
+          const code = String(process.env.SCENERY_CODE || '').trim();
+          if (!/^NDCS[123]/.test(code)) {
+            throw new Error('The pasted value is not a Neon Drift NDCS scenery code.');
           }
 
-          const base64 = code.replace(/^NDCS[12]/, "").replace(/\s+/g, "");
-          const decoded = Buffer.from(base64, "base64").toString("utf8");
-          const incoming = JSON.parse(decoded);
-
-          if (
-            !incoming ||
-            typeof incoming.course !== "string" ||
-            !Array.isArray(incoming.shapes)
-          ) {
-            throw new Error("The scenery code is missing its course or shapes.");
+          let jsonText;
+          if (code.startsWith('NDCS3')) {
+            const zipped = Buffer.from(code.slice(5).replace(/\s+/g, ''), 'base64');
+            jsonText = zlib.gunzipSync(zipped).toString('utf8');
+          } else {
+            jsonText = Buffer.from(
+              code.replace(/^NDCS[12]/, '').replace(/\s+/g, ''),
+              'base64'
+            ).toString('utf8');
           }
+
+          const incoming = JSON.parse(jsonText);
+          if (!incoming || typeof incoming.course !== 'string' || !Array.isArray(incoming.shapes)) {
+            throw new Error('The scenery code is missing its course or shapes.');
+          }
+
+          const models = incoming.models && typeof incoming.models === 'object'
+            ? incoming.models
+            : {};
+
+          const shapes = incoming.shapes.map((source) => {
+            const shape = { ...source };
+            if (shape.modelKey && !shape.modelData && models[shape.modelKey]) {
+              shape.modelData = models[shape.modelKey];
+            }
+            delete shape.modelKey;
+            return shape;
+          });
 
           let file = {
             v: 3,
             updatedAt: null,
-            catalog: {
-              v: 2,
-              scenes: {},
-              models: {}
-            }
+            catalog: { v: 2, scenes: {}, models: {} }
           };
 
-          if (fs.existsSync("scenery-data.json")) {
+          if (fs.existsSync('scenery-data.json')) {
             try {
-              file = JSON.parse(
-                fs.readFileSync("scenery-data.json", "utf8")
-              );
+              file = JSON.parse(fs.readFileSync('scenery-data.json', 'utf8'));
             } catch (error) {
-              console.log(
-                "The old scenery file could not be read, so a new one will be created."
-              );
+              console.log('The old scenery file could not be read, so a new one will be created.');
             }
           }
 
-          if (!file || typeof file !== "object") file = {};
-          if (!file.catalog || typeof file.catalog !== "object") {
-            file.catalog = {};
-          }
-          if (
-            !file.catalog.scenes ||
-            typeof file.catalog.scenes !== "object"
-          ) {
+          if (!file || typeof file !== 'object') file = {};
+          if (!file.catalog || typeof file.catalog !== 'object') file.catalog = {};
+          if (!file.catalog.scenes || typeof file.catalog.scenes !== 'object') {
             file.catalog.scenes = {};
           }
-          if (
-            !file.catalog.models ||
-            typeof file.catalog.models !== "object"
-          ) {
+          if (!file.catalog.models || typeof file.catalog.models !== 'object') {
             file.catalog.models = {};
           }
 
           file.v = 3;
           file.catalog.v = 2;
           file.updatedAt = new Date().toISOString();
-          file.catalog.scenes[incoming.course] = incoming.shapes;
+          file.catalog.scenes[incoming.course] = shapes;
 
           fs.writeFileSync(
-            "scenery-data.json",
-            JSON.stringify(file, null, 2) + "\n"
+            'scenery-data.json',
+            JSON.stringify(file, null, 2) + '\n'
           );
 
-          console.log(
-            `Prepared ${incoming.shapes.length} scenery objects for ${incoming.course}.`
-          );
+          console.log(`Prepared ${shapes.length} scenery objects for ${incoming.course}.`);
           NODE
 
       - name: Save scenery to the repository
