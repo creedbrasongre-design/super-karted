@@ -189,7 +189,7 @@
   .chat-attach{margin-top:5px;border:1px solid rgba(255,210,63,.28);border-radius:9px;padding:5px;background:rgba(255,210,63,.06)}
   .chat-attach img,.chat-attach video{display:block;max-width:100%;max-height:180px;border-radius:7px;background:#050816}
 </style>
-<!-- Neon Drift AI obstacle avoidance + real ramp physics v2 -->
+<!-- Neon Drift AI obstacle avoidance + real ramp physics v2 + universal wall bounce -->
 </head>
 <body>
 <div id="app"></div>
@@ -1644,6 +1644,22 @@ function nearestNear(x,z,y,prevI){   // follow the path by INDEX so self-overlap
   return {i:bi, d:Math.hypot(c.x-x,c.z-z)}; }
 function onRoad(x,z){ return nearest(x,z).d <= ROAD_W/2; }
 const KART_R=20;
+function bounceKartOffWall(k,nx,nz,e=0.20,drag=0.90){
+  // nx/nz point away from the wall and toward the open space the kart should rebound into.
+  const nl=Math.hypot(nx,nz)||1; nx/=nl; nz/=nl;
+  let vx=Math.sin(k.angle)*k.speed, vz=Math.cos(k.angle)*k.speed;
+  const into=vx*nx+vz*nz;
+  if(into>=-0.5) return false;                   // already moving away from the wall
+  vx-=(1+e)*into*nx; vz-=(1+e)*into*nz;         // reflect the into-wall velocity
+  vx*=drag; vz*=drag;                            // side-road-style speed loss
+  const ns=Math.hypot(vx,vz);
+  if(ns>3){ k.angle=Math.atan2(vx,vz); k.speed=ns; }
+  else k.speed=0;
+  if(k.isPlayer&&typeof AUD!=='undefined'&&AUD&&AUD.bump&&performance.now()-(k._wallBumpAt||0)>220){
+    k._wallBumpAt=performance.now(); AUD.bump();
+  }
+  return true;
+}
 function clampWall(k){            // collide only with road-edge wall geometry that is actually present
   const len=centerline.length; if(!len) return;
   const ni=nearestNear(k.x,k.z,k.y,k.gi).i;
@@ -1660,18 +1676,7 @@ function clampWall(k){            // collide only with road-edge wall geometry t
   bd=Math.sqrt(bd); const maxD=ROAD_W/2-KART_R;
   if(bd>maxD){
     k.x=cx+nx*maxD; k.z=cz+nz*maxD;          // push back inside the track wall
-    let vx=Math.sin(k.angle)*k.speed, vz=Math.cos(k.angle)*k.speed;
-    const into=vx*nx+vz*nz;                  // velocity component heading into the wall
-    if(into>0){ const e=0.05;                // restitution (0 = dead stop, 1 = full bounce)
-      vx-=(1+e)*into*nx; vz-=(1+e)*into*nz;  // remove the into-wall component (tiny rebound)
-      const glancing = into < Math.abs(k.speed)*0.42;   // a clean side-swipe, not a head-on
-      if(!(k.drift&&glancing)){ vx*=0.9; vz*=0.9; }      // normal hit bleeds speed; a drift-tap keeps it
-      if((k.drift&&glancing)){ vx*=0.45; vz*=0.45; }  
-      const ns=Math.hypot(vx,vz);
-      if(ns>20) k.angle=Math.atan2(vx,vz);    // face the new travel direction
-      if(k.drift&&glancing){ k.speed=Math.min(k.st.boost, ns+45); k.boost=Math.max(k.boost,0.00); }   // wall-tap spark
-      else { k.speed=ns; if(k.isPlayer && into>140) AUD.bump(); }
-    }
+    bounceKartOffWall(k,-nx,-nz);             // rebound toward the road, just like every other wall
   }
 }
 
@@ -3040,15 +3045,23 @@ function higherFloorAt(x,z,curY){
     if(f.y>curY+34) return f; }
   return null;
 }
-function battleWall(k,skipBound){ const b=arenaBound, r=KART_R; let vx=Math.sin(k.angle)*k.speed, vz=Math.cos(k.angle)*k.speed, hit=false, e=0.2;
+function battleWall(k,skipBound){ const b=arenaBound, r=KART_R;
   if(!skipBound){
-    if(k.x<b.minX+r){ k.x=b.minX+r; if(vx<0){vx=-vx*e;hit=true;} } if(k.x>b.maxX-r){ k.x=b.maxX-r; if(vx>0){vx=-vx*e;hit=true;} }
-    if(k.z<b.minZ+r){ k.z=b.minZ+r; if(vz<0){vz=-vz*e;hit=true;} } if(k.z>b.maxZ-r){ k.z=b.maxZ-r; if(vz>0){vz=-vz*e;hit=true;} } }
-  for(const w of arenaWalls){ if(k.y >= (w.h||72)-6) continue; const hw=w.w/2+r, hd=w.d/2+r, dx=k.x-w.x, dz=k.z-w.z;
-    if(Math.abs(dx)<hw && Math.abs(dz)<hd){ const ox=hw-Math.abs(dx), oz=hd-Math.abs(dz);
-      if(ox<oz){ k.x=w.x+(dx<0?-hw:hw); if((dx<0&&vx>0)||(dx>0&&vx<0)){vx=-vx*e;hit=true;} }
-      else { k.z=w.z+(dz<0?-hd:hd); if((dz<0&&vz>0)||(dz>0&&vz<0)){vz=-vz*e;hit=true;} } } }
-  if(hit){ const ns=Math.hypot(vx,vz); if(ns>20) k.angle=Math.atan2(vx,vz); k.speed=ns; } }
+    if(k.x<b.minX+r){ k.x=b.minX+r; bounceKartOffWall(k,1,0); }
+    if(k.x>b.maxX-r){ k.x=b.maxX-r; bounceKartOffWall(k,-1,0); }
+    if(k.z<b.minZ+r){ k.z=b.minZ+r; bounceKartOffWall(k,0,1); }
+    if(k.z>b.maxZ-r){ k.z=b.maxZ-r; bounceKartOffWall(k,0,-1); }
+  }
+  for(const w of arenaWalls){
+    if(k.y >= (w.h||72)-6) continue;
+    const hw=w.w/2+r, hd=w.d/2+r, dx=k.x-w.x, dz=k.z-w.z;
+    if(Math.abs(dx)<hw && Math.abs(dz)<hd){
+      const ox=hw-Math.abs(dx), oz=hd-Math.abs(dz);
+      if(ox<oz){ const side=dx<0?-1:1; k.x=w.x+side*hw; bounceKartOffWall(k,side,0); }
+      else { const side=dz<0?-1:1; k.z=w.z+side*hd; bounceKartOffWall(k,0,side); }
+    }
+  }
+}
 function spawnArenaBoxes(ar){ boxes.forEach(b=>scene.remove(b.mesh)); boxes=[];
   for(const p of ar.boxes){ const y=arenaSupport(p.x,p.z,9999); if(y<=VOID+1) continue;
     const m=new THREE.Mesh(new THREE.BoxGeometry(34,34,34),new THREE.MeshStandardMaterial({color:0xffd23f,emissive:0xffd23f,emissiveIntensity:0.6,transparent:true,opacity:0.85}));
@@ -3272,8 +3285,7 @@ function blockRaceWalls(k){             // brick walls: solid below their top, s
       const side=dn>=0?1:-1;
       k.x = w.x + w.nx*(side*w.thick) + (-w.nz)*dtg;   // shove back to the face on the side you came from
       k.z = w.z + w.nz*(side*w.thick) + ( w.nx)*dtg;
-      const into = Math.sin(k.angle)*(-w.nx*side) + Math.cos(k.angle)*(-w.nz*side);
-      if(into>0) k.speed*=0.3;          // kill momentum heading into the wall
+      bounceKartOffWall(k,w.nx*side,w.nz*side);         // brick/course wall bounce
     }
   }
 }
@@ -9431,13 +9443,22 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
       if(!colliderTouchesKartHeight(c,k.y,42))continue;
       if(c.kind==='circle'){
         const dx=k.x-c.x,dz=k.z-c.z,rr=c.r+kr,d2=dx*dx+dz*dz;if(d2>=rr*rr)continue;const d=Math.sqrt(d2)||1;
-        k.x=c.x+dx/d*rr;k.z=c.z+dz/d*rr;k.speed*=0.30;if(k.isPlayer&&AUD&&AUD.bump&&performance.now()-(k._ndcsBumpAt||0)>240){k._ndcsBumpAt=performance.now();AUD.bump();}
+        const nx=dx/d,nz=dz/d;
+        k.x=c.x+nx*rr;k.z=c.z+nz*rr;
+        bounceKartOffWall(k,nx,nz);                      // round editor walls/obstacles rebound too
       }else{
         const co=Math.cos(c.yaw),si=Math.sin(c.yaw),dx=k.x-c.x,dz=k.z-c.z,lx=co*dx-si*dz,lz=si*dx+co*dz,hx=c.hw+kr,hz=c.hd+kr;
         if(Math.abs(lx)>=hx||Math.abs(lz)>=hz)continue;
-        const px=hx-Math.abs(lx),pz=hz-Math.abs(lz);let nlx=lx,nlz=lz;
-        if(px<pz)nlx=(lx>=0?1:-1)*hx;else nlz=(lz>=0?1:-1)*hz;
-        k.x=c.x+co*nlx+si*nlz;k.z=c.z-si*nlx+co*nlz;k.speed*=0.30;if(k.isPlayer&&AUD&&AUD.bump&&performance.now()-(k._ndcsBumpAt||0)>240){k._ndcsBumpAt=performance.now();AUD.bump();}
+        const px=hx-Math.abs(lx),pz=hz-Math.abs(lz);let nlx=lx,nlz=lz,nx=0,nz=0;
+        if(px<pz){
+          const side=lx>=0?1:-1; nlx=side*hx;
+          nx=co*side; nz=-si*side;
+        }else{
+          const side=lz>=0?1:-1; nlz=side*hz;
+          nx=si*side; nz=co*side;
+        }
+        k.x=c.x+co*nlx+si*nlz;k.z=c.z-si*nlx+co*nlz;
+        bounceKartOffWall(k,nx,nz);                      // exact editor wall face bounce
       }
     }
   };
