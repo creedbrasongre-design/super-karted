@@ -1276,11 +1276,13 @@ function makeSky(cols){
   g.addColorStop(0,cols[0]); g.addColorStop(0.55,cols[1]); g.addColorStop(1,cols[2]);
   c.fillStyle=g; c.fillRect(0,0,16,256); return new THREE.CanvasTexture(cnv);
 }
+// MAIN RENDER SHARPNESS: change this number to adjust gameplay resolution.
+const GAME_PIXEL_RATIO_CAP=1.25;
 function initThree(){
   scene=new THREE.Scene();
   camera=new THREE.PerspectiveCamera(62, innerWidth/innerHeight, 1, 14000);
   renderer=new THREE.WebGLRenderer({antialias:true});
-  renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));
+  renderer.setPixelRatio(Math.min(devicePixelRatio||1,GAME_PIXEL_RATIO_CAP));
   renderer.setSize(innerWidth,innerHeight); app.appendChild(renderer.domElement);
   scene.add(new THREE.HemisphereLight(0xffd0ee,0x2a0f4a,0.95));
   const sun=new THREE.DirectionalLight(0xffe9c8,1.05); sun.position.set(800,1400,-600); scene.add(sun);
@@ -5656,7 +5658,7 @@ function resetGameplayCamera(force){
   else camera.position.lerp(pos, 0.92);
   camera.lookAt(px+sx*180, py+30, pz+cz*180);
   camera.fov=62; camera.updateProjectionMatrix();
-  try{ renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5)); renderer.setSize(innerWidth,innerHeight); }catch(e){}
+  try{ renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,GAME_PIXEL_RATIO_CAP)); renderer.setSize(innerWidth,innerHeight); }catch(e){}
 }
 function startGame(){
   // A damaged/old saved custom track used to be able to stop initThree() before the game canvas was created.
@@ -9034,7 +9036,7 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
   function exportPack(){const blob=new Blob([JSON.stringify(snapshot(),null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='neon-drift-studio-pack.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1200);}
   async function importPack(e){const f=e.target.files&&e.target.files[0];e.target.value='';if(!f)return;try{const x=JSON.parse(await f.text());if(!mergeCatalog(x))toast('NO NEW STUDIO ITEMS FOUND');else{publish();renderStudio();toast('STUDIO PACK IMPORTED');}}catch(err){toast('IMPORT FAILED');}}
 
-  function ensurePreview(){const c=document.getElementById('dsPreview');if(!c)return null;if(preview&&preview.canvas===c)return preview;stopPreview();try{const r=new THREE.WebGLRenderer({canvas:c,alpha:true,antialias:true});r.setPixelRatio(Math.min(devicePixelRatio||1,1.35));r.setSize(c.clientWidth||430,300,false);const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(38,(c.clientWidth||430)/300,1,2000);cam.position.set(130,98,175);cam.lookAt(0,18,0);sc.add(new THREE.AmbientLight(0xffffff,.9));const dl=new THREE.DirectionalLight(0xffffff,.85);dl.position.set(80,130,90);sc.add(dl);const floor=new THREE.Mesh(new THREE.CircleGeometry(78,40),new THREE.MeshBasicMaterial({color:0x151025,transparent:true,opacity:.8}));floor.rotation.x=-Math.PI/2;floor.position.y=-2;sc.add(floor);preview={canvas:c,renderer:r,scene:sc,camera:cam,group:null,raf:0};return preview;}catch(e){return null;}}
+  function ensurePreview(){const c=document.getElementById('dsPreview');if(!c)return null;if(preview&&preview.canvas===c)return preview;stopPreview();try{const r=new THREE.WebGLRenderer({canvas:c,alpha:true,antialias:true});r.setPixelRatio(Math.min(devicePixelRatio||1,GAME_PIXEL_RATIO_CAP));r.setSize(c.clientWidth||430,300,false);const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(38,(c.clientWidth||430)/300,1,2000);cam.position.set(130,98,175);cam.lookAt(0,18,0);sc.add(new THREE.AmbientLight(0xffffff,.9));const dl=new THREE.DirectionalLight(0xffffff,.85);dl.position.set(80,130,90);sc.add(dl);const floor=new THREE.Mesh(new THREE.CircleGeometry(78,40),new THREE.MeshBasicMaterial({color:0x151025,transparent:true,opacity:.8}));floor.rotation.x=-Math.PI/2;floor.position.y=-2;sc.add(floor);preview={canvas:c,renderer:r,scene:sc,camera:cam,group:null,raf:0};return preview;}catch(e){return null;}}
   function wheelPreview(w){const g=new THREE.Group(),mat=new THREE.MeshStandardMaterial({color:w.color,roughness:.65,metalness:.2});[-26,26].forEach(x=>{const tire=new THREE.Mesh(new THREE.CylinderGeometry(22*w.radius,22*w.radius,14*w.width,24),mat);tire.rotation.z=Math.PI/2;tire.position.x=x;g.add(tire);const pieces=buildShapeGroup(w.parts);pieces.position.x=x;g.add(pieces);});return g;}
   function previewObject(){if(tab==='car'){const d=carGame(draftCar);return buildChassis(d.color,d.parts,d.stickers,d.wheelMask,d.wing,d.wingColor,d.bodyType,getCharacter(selChar),selWheels).chassis;}if(tab==='wheel')return wheelPreview(wheelGame(draftWheel));const gl=gliderGame(draftGlider),g=makeSelectedGlider(gl);g.visible=true;g.position.set(0,20,0);return g;}
   function rebuildPreview(){const p=ensurePreview();if(!p)return;if(p.group)p.scene.remove(p.group);try{p.group=previewObject();p.scene.add(p.group);}catch(e){p.group=null;}}
@@ -9730,8 +9732,8 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
   function openGate(){safeOpenGate();}
   window.NDCSOpenStudio=safeOpenGate;
   document.addEventListener('click',e=>{const b=e.target&&e.target.closest&&e.target.closest('#ndcsOpen');if(!b)return;e.preventDefault();e.stopPropagation();safeOpenGate();},true);
-  function enterStudio(){gate.classList.add('hide');gate.style.display='';document.getElementById('menu').classList.add('hide');root.classList.add('show');active=true;state='scenery';player=null;document.body.classList.remove('racing','paused');try{studioOldPixelRatio=renderer.getPixelRatio?renderer.getPixelRatio():Math.min(devicePixelRatio||1,1.5);renderer.setPixelRatio(Math.min(devicePixelRatio||1,1.5));renderer.setSize(innerWidth,innerHeight);}catch(e){}markBusy(900);setCourse(selCourse||0);}
-  function exitStudio(){saveDraft(true);active=false;root.classList.remove('show');pixelRoot.classList.remove('show');state='menu';selCourse=courseIndex;try{renderer.setPixelRatio(Math.min(studioOldPixelRatio||1.5,1.5));renderer.setSize(innerWidth,innerHeight);}catch(e){}buildCourse(COURSES[selCourse]);document.getElementById('menu').classList.remove('hide');renderMenu();}
+  function enterStudio(){gate.classList.add('hide');gate.style.display='';document.getElementById('menu').classList.add('hide');root.classList.add('show');active=true;state='scenery';player=null;document.body.classList.remove('racing','paused');try{studioOldPixelRatio=renderer.getPixelRatio?renderer.getPixelRatio():Math.min(devicePixelRatio||1,GAME_PIXEL_RATIO_CAP);renderer.setPixelRatio(Math.min(devicePixelRatio||1,GAME_PIXEL_RATIO_CAP));renderer.setSize(innerWidth,innerHeight);}catch(e){}markBusy(900);setCourse(selCourse||0);}
+  function exitStudio(){saveDraft(true);active=false;root.classList.remove('show');pixelRoot.classList.remove('show');state='menu';selCourse=courseIndex;try{renderer.setPixelRatio(Math.min(studioOldPixelRatio||GAME_PIXEL_RATIO_CAP,GAME_PIXEL_RATIO_CAP));renderer.setSize(innerWidth,innerHeight);}catch(e){}buildCourse(COURSES[selCourse]);document.getElementById('menu').classList.remove('hide');renderMenu();}
   function bindUI(){
     document.getElementById('ndcsUnlock').onclick=()=>{const v=document.getElementById('ndcsPass').value.trim();if(v===PASS){unlocked=true;enterStudio();}else{document.getElementById('ndcsGateMsg').textContent='Wrong password.';document.getElementById('ndcsPass').value='';}};
     document.getElementById('ndcsPass').onkeydown=e=>{if(e.key==='Enter')document.getElementById('ndcsUnlock').click();};document.getElementById('ndcsCancel').onclick=()=>{gate.classList.add('hide');gate.style.display='';document.getElementById('menu').classList.remove('hide');};
