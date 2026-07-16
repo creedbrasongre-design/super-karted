@@ -1277,7 +1277,7 @@ function makeSky(cols){
   c.fillStyle=g; c.fillRect(0,0,16,256); return new THREE.CanvasTexture(cnv);
 }
 // MAIN RENDER SHARPNESS: change this number to adjust gameplay resolution.
-const GAME_PIXEL_RATIO_CAP=1.25;
+const GAME_PIXEL_RATIO_CAP=1;
 function initThree(){
   scene=new THREE.Scene();
   camera=new THREE.PerspectiveCamera(62, innerWidth/innerHeight, 1, 14000);
