@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Open repository files
         uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.NEON_DRIFT_PAT }}
 
       - name: Decode and update music-data.json
         env:
@@ -46,27 +48,54 @@ jobs:
           if (!incoming || incoming.version !== 3) {
             throw new Error('This music code is not version 3.');
           }
-          if (!/^(race|battle):\d+$/.test(String(incoming.key || ''))) {
+
+          const levelKey = String(incoming.key || '');
+          if (
+            levelKey.length < 3 ||
+            levelKey.length > 120 ||
+            !/^(race:\d+|battle:\d+|course:.+|arena:.+)$/.test(levelKey)
+          ) {
             throw new Error('The music code has an invalid level key.');
           }
-          if (!incoming.song || typeof incoming.song !== 'object' || !incoming.song.sections) {
+
+          if (!incoming.song || typeof incoming.song !== 'object') {
             throw new Error('The music code does not contain a complete song.');
           }
 
-          const allowedSections = ['intro', 'driveA', 'driveB', 'chorus', 'lastLap'];
-          for (const name of allowedSections) {
-            const section = incoming.song.sections[name];
-            if (!section || !Array.isArray(section.tracks) || section.tracks.length > 5) {
-              throw new Error(`The ${name} section is missing or has too many tracks.`);
-            }
-            for (const track of section.tracks) {
-              if (!track || !Array.isArray(track.notes) || track.notes.length > 16) {
-                throw new Error(`A track in ${name} has invalid notes.`);
+          if (incoming.song.sections) {
+            const allowedSections = ['intro', 'driveA', 'driveB', 'chorus', 'lastLap'];
+            for (const name of allowedSections) {
+              const section = incoming.song.sections[name];
+              if (!section || !Array.isArray(section.tracks) || section.tracks.length > 5) {
+                throw new Error(`The ${name} section is missing or has too many tracks.`);
+              }
+              for (const track of section.tracks) {
+                if (!track || !Array.isArray(track.notes) || track.notes.length > 16) {
+                  throw new Error(`A track in ${name} has invalid notes.`);
+                }
               }
             }
+          } else if (Array.isArray(incoming.song.parts) && incoming.song.lastLap) {
+            if (incoming.song.parts.length < 4 || incoming.song.parts.length > 8) {
+              throw new Error('The song has an invalid number of parts.');
+            }
+            for (const part of [...incoming.song.parts, incoming.song.lastLap]) {
+              if (
+                !part ||
+                !Array.isArray(part.prog) ||
+                part.prog.length > 8 ||
+                !Array.isArray(part.leadPat) ||
+                part.leadPat.length > 32
+              ) {
+                throw new Error('One of the song parts has invalid chords or melody notes.');
+              }
+            }
+          } else {
+            throw new Error('The music code does not contain recognized song parts.');
           }
 
           let file = { version: 3, updatedAt: null, songs: {} };
+
           if (fs.existsSync('music-data.json')) {
             try {
               file = JSON.parse(fs.readFileSync('music-data.json', 'utf8'));
@@ -76,7 +105,10 @@ jobs:
           }
 
           if (!file || typeof file !== 'object') file = {};
-          if (!file.songs || typeof file.songs !== 'object' || Array.isArray(file.songs)) file.songs = {};
+          if (!file.songs || typeof file.songs !== 'object' || Array.isArray(file.songs)) {
+            file.songs = {};
+          }
+
           file.version = 3;
           file.updatedAt = new Date().toISOString();
           file.songs[incoming.key] = incoming.song;
@@ -87,8 +119,8 @@ jobs:
 
       - name: Save music to the repository
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
           git add music-data.json
 
           if git diff --cached --quiet; then
