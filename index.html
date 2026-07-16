@@ -295,6 +295,7 @@
   <div class="chips" id="signalTowerChips"></div>
   <button id="startBtn" onclick="startGame()">START RACE</button>
   <button class="ghost" style="margin-top:10px" onclick="openSound('menu')"><svg viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-0.16em;color:#cdb8ff;filter:drop-shadow(0 0 2px #cdb8ff)" fill="none" stroke="#cdb8ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 8a5 5 0 0 1 0 8M18.5 5a9 9 0 0 1 0 14"/></svg> SOUND SETTINGS</button>
+  <button class="ghost" style="margin-top:10px" onclick="openMusicStudioGate()">&#9835; MUSIC STUDIO</button>
   <button class="ghost" style="margin-top:10px" onclick="openEditor()"><svg viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-0.16em;color:#cdb8ff;filter:drop-shadow(0 0 2px #cdb8ff)" fill="none" stroke="#cdb8ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 19l1.5-4L17 4.5l3 3L9.5 18z"/><path d="M14.5 7l3 3"/></svg> CUSTOM LEVEL EDITOR</button>
   <button class="ghost" style="margin-top:10px" onclick="openStudio()"><svg viewBox="0 0 24 24" width="15" height="15" style="vertical-align:-0.16em;color:#ffd23f;filter:drop-shadow(0 0 2px #ffd23f)" fill="none" stroke="#ffd23f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> CURVE TRACK STUDIO</button>
   <div class="ctrlhint">W/&#8593; accel &nbsp;&middot;&nbsp; S/&#8595; brake &nbsp;&middot;&nbsp; A D / &#8592;&#8594; steer &nbsp;&middot;&nbsp; SPACE drift &nbsp;&middot;&nbsp; C jump &rarr; V flip &nbsp;&middot;&nbsp; FLY PAD + V glider link &nbsp;&middot;&nbsp; V DASH on ground &nbsp;&middot;&nbsp; Z+&#8592;&#8594; glide &nbsp;&middot;&nbsp; X ram (demo) &nbsp;&middot;&nbsp; SHIFT item &nbsp;&middot;&nbsp; R reset</div>
@@ -504,11 +505,12 @@ const MUSIC={
     const scale=SCALES[Math.floor(rnd()*SCALES.length)], root=33+Math.floor(rnd()*8), bpm=92+Math.floor(rnd()*48);
     const prog=PROGS[Math.floor(rnd()*PROGS.length)], leadPat=[];
     for(let i=0;i<16;i++) leadPat.push(rnd()<0.45? Math.floor(rnd()*4) : -1);
-    return {scale,root,bpm,prog,leadPat, wave:rnd()<0.5?'sawtooth':'square', hatEvery:rnd()<0.5?1:2, leadType:rnd()<0.5?'square':'triangle'}; },
+    return {scale,root,bpm,prog,leadPat,wave:rnd()<0.5?'sawtooth':'square',hatEvery:rnd()<0.5?1:2,leadType:rnd()<0.5?'square':'triangle',chordType:'sawtooth',volume:0.32,bassVol:0.20,chordVol:0.05,leadVol:0.12,kickOn:true,snareOn:true,hatsOn:true}; },
   freq(m){ return 440*Math.pow(2,(m-69)/12); },
   sn(cfg,deg){ const sc=cfg.scale, n=sc.length, oct=Math.floor(deg/n), idx=((deg%n)+n)%n; return cfg.root+oct*12+sc[idx]; },
-  start(seed){ if(!this.enabled||!this.ensure()) return; this.cfg=this.build(seed); this.step=0; this.nextT=AUD.ctx.currentTime+0.12; this.on=true;
+  start(seed,levelKey){ if(!this.enabled||!this.ensure()) return; const edited=window.NDMusicGetConfig&&window.NDMusicGetConfig(levelKey,seed); this.cfg=edited||this.build(seed); if(this.gain)this.gain.gain.value=Math.max(0.05,Math.min(0.7,Number(this.cfg.volume)||0.32)); this.step=0; this.nextT=AUD.ctx.currentTime+0.12; this.on=true;
     if(this.timer) clearInterval(this.timer); this.timer=setInterval(()=>this.tick(),25); },
+  playConfig(cfg){ if(!this.ensure()) return; this.cfg=cfg; if(this.gain)this.gain.gain.value=Math.max(0.05,Math.min(0.7,Number(cfg&&cfg.volume)||0.32)); this.step=0;this.nextT=AUD.ctx.currentTime+0.08;this.on=true;if(this.timer)clearInterval(this.timer);this.timer=setInterval(()=>this.tick(),25); },
   resume(){ if(!this.enabled||!this.cfg||!this.ensure()) return; this.on=true; this.nextT=AUD.ctx.currentTime+0.1;
     if(this.timer) clearInterval(this.timer); this.timer=setInterval(()=>this.tick(),25); },
   stop(){ this.on=false; if(this.timer){ clearInterval(this.timer); this.timer=null; } },
@@ -525,12 +527,12 @@ const MUSIC={
     const g=AUD.ctx.createGain(); g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(0.001,t+dur);
     s.connect(bp); bp.connect(g); g.connect(this.gain); s.start(t); s.stop(t+dur+0.02); },
   play(s,t,six){ const cfg=this.cfg, chord=cfg.prog[Math.floor(s/4)];
-    if(s%4===0) this.kick(t);
-    if(s===4||s===12) this.nz(t,0.18,0.32,1400);
-    if(s%cfg.hatEvery===0) this.nz(t,0.04,0.10,7000);
-    if(s%2===0) this.osc(this.freq(this.sn(cfg,chord)-12),t,six*1.8,cfg.wave,0.20);
-    if(s%4===0) [0,2,4].forEach(iv=>this.osc(this.freq(this.sn(cfg,chord+iv)),t,six*3.8,'sawtooth',0.05));
-    const lp=cfg.leadPat[s]; if(lp>=0) this.osc(this.freq(this.sn(cfg,chord+[0,2,4,7][lp])+12),t,six*0.9,cfg.leadType,0.12); }
+    if(cfg.kickOn!==false&&s%4===0) this.kick(t);
+    if(cfg.snareOn!==false&&(s===4||s===12)) this.nz(t,0.18,0.32,1400);
+    if(cfg.hatsOn!==false&&s%(cfg.hatEvery||1)===0) this.nz(t,0.04,0.10,7000);
+    if(s%2===0) this.osc(this.freq(this.sn(cfg,chord)-12),t,six*1.8,cfg.wave,Number.isFinite(Number(cfg.bassVol))?Number(cfg.bassVol):0.20);
+    if(s%4===0) [0,2,4].forEach(iv=>this.osc(this.freq(this.sn(cfg,chord+iv)),t,six*3.8,cfg.chordType||'sawtooth',Number.isFinite(Number(cfg.chordVol))?Number(cfg.chordVol):0.05));
+    const lp=cfg.leadPat[s]; if(lp>=0) this.osc(this.freq(this.sn(cfg,chord+[0,2,4,7][lp])+12),t,six*0.9,cfg.leadType,Number.isFinite(Number(cfg.leadVol))?Number(cfg.leadVol):0.12); }
 };
 
 const CARS=[
@@ -5798,6 +5800,7 @@ function startGame(){
   const lvlSeed = mode==='battle' ? 'A:'+ARENAS[selArena].name+battleMode+(teamModeActive()?':T'+teamCount:'')+':S'+selBattleSize
                 : tileRace ? 'T:'+((customTile&&customTile.name)||'custom')+(teamModeActive()?':T'+teamCount:'')
                 : 'C:'+COURSES[selCourse].name+(teamModeActive()?':T'+teamCount:'');
+  const musicLevelKey=mode==='battle'?'arena:'+ARENAS[selArena].name:tileRace?'custom:'+((customTile&&customTile.name)||'custom'):'course:'+COURSES[selCourse].name;
   state='countdown';
   const cd=document.getElementById('countdown'); let n=3;
   const tick=()=>{ if(n>0){ cd.textContent=n; cd.style.opacity=1; AUD.beep(false);
@@ -5808,7 +5811,7 @@ function startGame(){
       if(player){ const hold=(performance.now()-revDownAt)/1000;   // rocket start: feather the gas right as GO
         if((keys['w']||keys['arrowup'])){ if(hold<=0.6){ player.speed=player.st.max*0.7; player.boost=1.1; AUD.boost(); flashBanner('🚀 ROCKET START!'); }
           else if(hold>1.5){ player.slow=1.1; player.slowF=0.55; flashBanner('💨 flooded!'); } } }
-      MUSIC.start(lvlSeed); state='race'; startTime=performance.now(); } };
+      MUSIC.start(lvlSeed,musicLevelKey); state='race'; startTime=performance.now(); } };
   tick();
 }
 function finishGame(){
@@ -9898,6 +9901,165 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
   setInterval(()=>{try{addMenuButton();if(!active&&state==='menu')loadRemoteCatalog(true);}catch(e){}},90000);
 })();
 
+</script>
+<script>
+/* ============================================================
+   PASSWORD-PROTECTED MUSIC STUDIO
+   Keeps each level's procedural song as its restorable original.
+   ============================================================ */
+(()=>{
+  const STORE='neondrift_music_overrides_v1',PASS_HASH=3544175882;
+  const SCALES={
+    minor:[0,2,3,5,7,8,10],
+    major:[0,2,4,5,7,9,11],
+    dorian:[0,2,3,5,7,9,10],
+    harmonic:[0,2,3,5,7,8,11]
+  };
+  const WAVES=['sine','triangle','square','sawtooth'];
+  let items=[],selectedKey='',draft=null,authorized=false;
+  const clone=o=>JSON.parse(JSON.stringify(o));
+  const clamp=(n,a,b)=>{n=Number(n);return Number.isFinite(n)?Math.max(a,Math.min(b,n)):a;};
+  const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  function hash(s){let h=2166136261>>>0;for(const ch of String(s||'')){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)>>>0;}return h>>>0;}
+  function load(){try{const x=JSON.parse(localStorage.getItem(STORE)||'{}');return x&&typeof x==='object'&&!Array.isArray(x)?x:{};}catch(e){return {};}}
+  function persist(x){try{localStorage.setItem(STORE,JSON.stringify(x||{}));return true;}catch(e){return false;}}
+  function scaleName(sc){const s=JSON.stringify(sc||[]);return Object.keys(SCALES).find(k=>JSON.stringify(SCALES[k])===s)||'minor';}
+  function normalize(raw,base){
+    base=base||MUSIC.build('NEON DRIFT');raw=raw&&typeof raw==='object'?raw:{};
+    const cfg=Object.assign({},base,raw);
+    cfg.scale=clone(SCALES[scaleName(cfg.scale)]);
+    cfg.root=Math.round(clamp(cfg.root,24,60));
+    cfg.bpm=Math.round(clamp(cfg.bpm,60,180));
+    cfg.prog=(Array.isArray(cfg.prog)?cfg.prog:base.prog).slice(0,4).map(n=>Math.round(clamp(n,0,6)));while(cfg.prog.length<4)cfg.prog.push(0);
+    cfg.leadPat=(Array.isArray(cfg.leadPat)?cfg.leadPat:base.leadPat).slice(0,16).map(n=>Math.round(clamp(n,-1,3)));while(cfg.leadPat.length<16)cfg.leadPat.push(-1);
+    cfg.wave=WAVES.includes(cfg.wave)?cfg.wave:'sawtooth';
+    cfg.leadType=WAVES.includes(cfg.leadType)?cfg.leadType:'square';
+    cfg.chordType=WAVES.includes(cfg.chordType)?cfg.chordType:'sawtooth';
+    cfg.hatEvery=[1,2,4].includes(Number(cfg.hatEvery))?Number(cfg.hatEvery):1;
+    cfg.volume=clamp(cfg.volume,.08,.65);
+    cfg.bassVol=clamp(cfg.bassVol,0,.4);
+    cfg.chordVol=clamp(cfg.chordVol,0,.25);
+    cfg.leadVol=clamp(cfg.leadVol,0,.3);
+    cfg.kickOn=cfg.kickOn!==false;cfg.snareOn=cfg.snareOn!==false;cfg.hatsOn=cfg.hatsOn!==false;
+    return cfg;
+  }
+  function levelItems(){
+    const out=[];
+    (COURSES||[]).forEach((c,i)=>{if(c&&c.name)out.push({key:'course:'+c.name,name:c.name,type:'RACE',seed:'C:'+c.name,index:i});});
+    (ARENAS||[]).forEach((a,i)=>{if(a&&a.name)out.push({key:'arena:'+a.name,name:a.name,type:'BATTLE',seed:'A:'+a.name+'balloon:S'+selBattleSize,index:i});});
+    return out;
+  }
+  function itemFor(key){return items.find(x=>x.key===key)||items[0];}
+  function original(item){item=item||itemFor(selectedKey);return normalize(MUSIC.build(item?item.seed:'NEON DRIFT'));}
+  function savedFor(item){const all=load(),raw=item&&all[item.key];return raw?normalize(raw,original(item)):null;}
+  function activeFor(item){return savedFor(item)||original(item);}
+  window.NDMusicGetConfig=function(levelKey,seed){const raw=load()[levelKey];return raw?normalize(raw,MUSIC.build(seed||levelKey||'NEON DRIFT')):null;};
+
+  function ensureScreens(){
+    if(!document.getElementById('musicStudioStyle')){
+      const st=document.createElement('style');st.id='musicStudioStyle';st.textContent=
+        '#musicStudioGate,#musicStudio{z-index:215}.ms-card{width:min(980px,96vw);max-height:94vh;overflow:auto;text-align:left}.ms-card h1{text-align:center}.ms-top{display:grid;grid-template-columns:1fr auto;gap:9px;align-items:end}.ms-grid{display:grid;grid-template-columns:repeat(4,minmax(125px,1fr));gap:9px;margin:10px 0}.ms-field{display:flex;flex-direction:column;gap:5px;padding:8px;border:1px solid rgba(0,229,255,.18);border-radius:9px;background:rgba(5,8,24,.58);font-size:11px;color:#cfeeff}.ms-field b{color:#ffd23f}.ms-field input,.ms-field select,#musicStudioLevel,#msCopyLevel{width:100%;box-sizing:border-box;background:#080612;border:1px solid rgba(0,229,255,.38);border-radius:7px;color:#fff;padding:7px;font-family:inherit}.ms-sec{margin-top:13px;padding-top:10px;border-top:1px solid rgba(255,255,255,.12)}.ms-title{font-family:"Press Start 2P";font-size:9px;color:#00e5ff;margin-bottom:8px}.ms-prog,.ms-steps,.ms-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.ms-prog input{width:58px;background:#080612;border:1px solid #7953c6;border-radius:7px;color:#fff;padding:8px;text-align:center}.ms-step{width:45px;min-width:45px;height:42px;padding:3px;margin:0;border:1px solid #3d355d;background:#0c0a1a;color:#857aa3;box-shadow:none;font-size:9px}.ms-step.on{border-color:#ffd23f;background:#3b2808;color:#fff}.ms-toggle.off{opacity:.48;border-color:#554d68}.ms-status{min-height:18px;color:#ffe89a;font-size:11px;margin:8px 0}.ms-badge{font-size:10px;padding:7px 9px;border-radius:8px;background:rgba(166,255,63,.08);border:1px solid rgba(166,255,63,.35);color:#cfff9d;white-space:nowrap}@media(max-width:760px){.ms-grid{grid-template-columns:repeat(2,minmax(120px,1fr))}.ms-top{grid-template-columns:1fr}.ms-card{max-height:96vh}}';
+      document.head.appendChild(st);
+    }
+    if(!document.getElementById('musicStudioGate')){
+      const g=document.createElement('div');g.id='musicStudioGate';g.className='screen hide';g.innerHTML='<div class="menucard" style="max-width:430px"><h1 class="mlogo" style="font-size:24px">MUSIC STUDIO</h1><div style="color:#cdbce6;margin:10px 0">Enter the studio password.</div><input id="musicStudioPassword" type="password" inputmode="numeric" autocomplete="off" style="width:min(330px,92%);box-sizing:border-box;background:#080612;border:2px solid rgba(0,229,255,.45);border-radius:10px;color:#fff;padding:12px;text-align:center;font-size:18px;letter-spacing:3px"><div id="musicStudioGateMsg" style="min-height:20px;color:#ff91b8;margin-top:7px"></div><button id="musicStudioUnlock">UNLOCK</button><button class="ghost" id="musicStudioCancel">CANCEL</button></div>';
+      document.body.appendChild(g);
+      g.querySelector('#musicStudioUnlock').onclick=unlock;
+      g.querySelector('#musicStudioCancel').onclick=closeGate;
+      g.querySelector('#musicStudioPassword').onkeydown=e=>{if(e.key==='Enter')unlock();};
+    }
+    if(!document.getElementById('musicStudio')){
+      const s=document.createElement('div');s.id='musicStudio';s.className='screen hide';s.innerHTML='<div class="menucard ms-card"><h1 class="mlogo" style="font-size:24px">NEON DRIFT MUSIC STUDIO</h1><div id="musicStudioBody"></div></div>';
+      document.body.appendChild(s);
+    }
+  }
+  function currentKey(){
+    if(mode==='battle'&&ARENAS[selArena])return 'arena:'+ARENAS[selArena].name;
+    if(COURSES[selCourse])return 'course:'+COURSES[selCourse].name;
+    return items[0]&&items[0].key;
+  }
+  function openGate(){
+    ensureScreens();authorized=false;MUSIC.stop();const menu=document.getElementById('menu');if(menu)menu.classList.add('hide');
+    const g=document.getElementById('musicStudioGate');g.classList.remove('hide');const i=document.getElementById('musicStudioPassword');i.value='';document.getElementById('musicStudioGateMsg').textContent='';setTimeout(()=>i.focus(),30);
+  }
+  function closeGate(){const g=document.getElementById('musicStudioGate');if(g)g.classList.add('hide');const menu=document.getElementById('menu');if(menu)menu.classList.remove('hide');}
+  function unlock(){
+    const i=document.getElementById('musicStudioPassword'),msg=document.getElementById('musicStudioGateMsg');
+    if(hash(i.value)!==PASS_HASH){msg.textContent='ACCESS DENIED';i.value='';return;}
+    authorized=true;items=levelItems();selectedKey=currentKey()||(items[0]&&items[0].key)||'';draft=clone(activeFor(itemFor(selectedKey)));
+    document.getElementById('musicStudioGate').classList.add('hide');document.getElementById('musicStudio').classList.remove('hide');render();
+  }
+  function closeStudio(){authorized=false;MUSIC.stop();const s=document.getElementById('musicStudio');if(s)s.classList.add('hide');const menu=document.getElementById('menu');if(menu)menu.classList.remove('hide');try{renderMenu();}catch(e){}}
+  function noteName(n){const names=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];n=Math.round(n);return names[((n%12)+12)%12]+(Math.floor(n/12)-1);}
+  function options(list,value){return list.map(x=>'<option value="'+esc(x)+'"'+(String(x)===String(value)?' selected':'')+'>'+esc(String(x).toUpperCase())+'</option>').join('');}
+  function range(label,key,min,max,step,val,display){return '<label class="ms-field"><span>'+label+' <b id="msRead-'+key+'">'+esc(display==null?val:display)+'</b></span><input type="range" data-ms-field="'+key+'" min="'+min+'" max="'+max+'" step="'+step+'" value="'+val+'"></label>';}
+  function selectField(label,key,value,list){return '<label class="ms-field"><span>'+label+'</span><select data-ms-field="'+key+'">'+options(list,value)+'</select></label>';}
+  function leadLabel(v){return v<0?'OFF':'NOTE '+(v+1);}
+  function render(){
+    if(!authorized)return;const body=document.getElementById('musicStudioBody'),item=itemFor(selectedKey),has=!!savedFor(item);
+    if(!draft)draft=clone(activeFor(item));
+    const scale=scaleName(draft.scale);
+    const levelOpts=items.map(x=>'<option value="'+esc(x.key)+'"'+(x.key===selectedKey?' selected':'')+'>'+esc(x.type+' · '+x.name)+'</option>').join('');
+    const copyOpts=items.filter(x=>x.key!==selectedKey).map(x=>'<option value="'+esc(x.key)+'">'+esc(x.type+' · '+x.name)+'</option>').join('');
+    body.innerHTML=
+      '<div class="ms-top"><label class="ms-field"><span>LEVEL MUSIC</span><select id="musicStudioLevel">'+levelOpts+'</select></label><div class="ms-badge">'+(has?'CUSTOM MUSIC SAVED':'ORIGINAL LEVEL MUSIC')+'</div></div>'+
+      '<div class="ms-grid">'+
+        range('TEMPO','bpm',60,180,1,draft.bpm,draft.bpm+' BPM')+
+        range('ROOT NOTE','root',24,60,1,draft.root,noteName(draft.root))+
+        range('SONG VOLUME','volume',.08,.65,.01,draft.volume,Math.round(draft.volume*100)+'%')+
+        '<label class="ms-field"><span>SCALE</span><select data-ms-scale="1">'+options(Object.keys(SCALES),scale)+'</select></label>'+
+        selectField('BASS SOUND','wave',draft.wave,WAVES)+
+        selectField('CHORD SOUND','chordType',draft.chordType,WAVES)+
+        selectField('LEAD SOUND','leadType',draft.leadType,WAVES)+
+        selectField('HI-HAT SPEED','hatEvery',draft.hatEvery,[1,2,4])+
+        range('BASS MIX','bassVol',0,.4,.01,draft.bassVol,Math.round(draft.bassVol*100)+'%')+
+        range('CHORD MIX','chordVol',0,.25,.01,draft.chordVol,Math.round(draft.chordVol*100)+'%')+
+        range('LEAD MIX','leadVol',0,.3,.01,draft.leadVol,Math.round(draft.leadVol*100)+'%')+
+      '</div>'+
+      '<div class="ms-sec"><div class="ms-title">DRUMS</div><div class="ms-actions">'+
+        '<button class="ghost ms-toggle '+(draft.kickOn?'':'off')+'" data-ms-toggle="kickOn">KICK '+(draft.kickOn?'ON':'OFF')+'</button>'+
+        '<button class="ghost ms-toggle '+(draft.snareOn?'':'off')+'" data-ms-toggle="snareOn">SNARE '+(draft.snareOn?'ON':'OFF')+'</button>'+
+        '<button class="ghost ms-toggle '+(draft.hatsOn?'':'off')+'" data-ms-toggle="hatsOn">HI-HATS '+(draft.hatsOn?'ON':'OFF')+'</button>'+
+      '</div></div>'+
+      '<div class="ms-sec"><div class="ms-title">FOUR-CHORD PROGRESSION · SCALE DEGREES 0–6</div><div class="ms-prog">'+draft.prog.map((v,i)=>'<label>CHORD '+(i+1)+' <input type="number" min="0" max="6" step="1" value="'+v+'" data-ms-prog="'+i+'"></label>').join('')+'</div></div>'+
+      '<div class="ms-sec"><div class="ms-title">16-STEP LEAD MELODY · TAP A STEP TO CYCLE NOTES</div><div class="ms-steps">'+draft.leadPat.map((v,i)=>'<button class="ms-step '+(v>=0?'on':'')+'" data-ms-step="'+i+'"><small>'+(i+1)+'</small><br>'+leadLabel(v)+'</button>').join('')+'</div></div>'+
+      '<div class="ms-sec"><div class="ms-title">TEST AND SAVE</div><div class="ms-actions"><button id="msPlay">&#9654; TEST MUSIC</button><button class="ghost" id="msStop">&#9632; STOP</button><button id="msSave">SAVE TO THIS LEVEL</button><button class="ghost" id="msReset">UNDO UNSAVED CHANGES</button><button class="ghost" id="msRestore">RESTORE OLD MUSIC</button></div><div id="musicStudioStatus" class="ms-status">'+esc(item.type+' · '+item.name)+'</div></div>'+
+      '<div class="ms-sec"><div class="ms-title">COPY OR BACK UP</div><div class="ms-actions"><select id="msCopyLevel" style="min-width:240px">'+copyOpts+'</select><button class="ghost" id="msCopy">COPY THAT LEVEL\'S MUSIC HERE</button><button class="ghost" id="msExport">DOWNLOAD MUSIC PACK</button><button class="ghost" id="msImport">IMPORT MUSIC PACK</button><input id="msImportFile" type="file" accept="application/json,.json" style="display:none"><button class="ghost" id="msClose">BACK TO MENU</button></div></div>';
+    bind();
+  }
+  function setStatus(t){const e=document.getElementById('musicStudioStatus');if(e)e.textContent=t;}
+  function updateRead(key,value){const e=document.getElementById('msRead-'+key);if(!e)return;e.textContent=key==='bpm'?Math.round(value)+' BPM':key==='root'?noteName(value):Math.round(Number(value)*100)+'%';}
+  function bind(){
+    const level=document.getElementById('musicStudioLevel');level.onchange=()=>{MUSIC.stop();selectedKey=level.value;draft=clone(activeFor(itemFor(selectedKey)));render();};
+    document.querySelectorAll('[data-ms-field]').forEach(el=>{const fn=()=>{const k=el.dataset.msField;draft[k]=(k==='wave'||k==='chordType'||k==='leadType')?el.value:Number(el.value);updateRead(k,draft[k]);};el.oninput=fn;el.onchange=fn;});
+    const scale=document.querySelector('[data-ms-scale]');scale.onchange=()=>{draft.scale=clone(SCALES[scale.value]||SCALES.minor);};
+    document.querySelectorAll('[data-ms-toggle]').forEach(b=>b.onclick=()=>{draft[b.dataset.msToggle]=!draft[b.dataset.msToggle];render();});
+    document.querySelectorAll('[data-ms-prog]').forEach(el=>el.onchange=()=>{draft.prog[Number(el.dataset.msProg)]=Math.round(clamp(el.value,0,6));el.value=draft.prog[Number(el.dataset.msProg)];});
+    document.querySelectorAll('[data-ms-step]').forEach(b=>b.onclick=()=>{const i=Number(b.dataset.msStep),v=draft.leadPat[i];draft.leadPat[i]=v>=3?-1:v+1;b.classList.toggle('on',draft.leadPat[i]>=0);b.innerHTML='<small>'+(i+1)+'</small><br>'+leadLabel(draft.leadPat[i]);});
+    document.getElementById('msPlay').onclick=()=>{AUD.init();MUSIC.enabled=true;draft=normalize(draft,original(itemFor(selectedKey)));MUSIC.playConfig(clone(draft));setStatus('Playing the unsaved draft for '+itemFor(selectedKey).name+'.');};
+    document.getElementById('msStop').onclick=()=>{MUSIC.stop();setStatus('Music stopped.');};
+    document.getElementById('msSave').onclick=()=>{const all=load(),item=itemFor(selectedKey);all[item.key]=normalize(draft,original(item));persist(all);draft=clone(all[item.key]);MUSIC.stop();render();setStatus('Saved. This level now uses your edited music.');};
+    document.getElementById('msReset').onclick=()=>{MUSIC.stop();draft=clone(activeFor(itemFor(selectedKey)));render();setStatus('Unsaved changes removed.');};
+    document.getElementById('msRestore').onclick=()=>{const all=load(),item=itemFor(selectedKey);delete all[item.key];persist(all);MUSIC.stop();draft=clone(original(item));render();setStatus('The original music for '+item.name+' has been restored.');};
+    document.getElementById('msCopy').onclick=()=>{const k=document.getElementById('msCopyLevel').value,from=itemFor(k);if(!from)return;MUSIC.stop();draft=clone(activeFor(from));render();setStatus('Copied '+from.name+' into this unsaved draft.');};
+    document.getElementById('msExport').onclick=exportPack;
+    document.getElementById('msImport').onclick=()=>document.getElementById('msImportFile').click();
+    document.getElementById('msImportFile').onchange=importPack;
+    document.getElementById('msClose').onclick=closeStudio;
+  }
+  function exportPack(){
+    const data={format:'NEON-DRIFT-MUSIC-1',exported:new Date().toISOString(),tracks:load()},blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);a.download='neon-drift-music-pack.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1200);setStatus('Music pack downloaded.');
+  }
+  async function importPack(e){
+    const file=e.target.files&&e.target.files[0];e.target.value='';if(!file)return;
+    try{const data=JSON.parse(await file.text()),tracks=data&&data.tracks;if(!tracks||typeof tracks!=='object'||Array.isArray(tracks))throw Error('bad');
+      const all=load();Object.keys(tracks).slice(0,200).forEach(k=>{const item=itemFor(k),base=item?original(item):MUSIC.build(k);all[k]=normalize(tracks[k],base);});persist(all);draft=clone(activeFor(itemFor(selectedKey)));render();setStatus('Music pack imported.');}
+    catch(err){setStatus('That music pack could not be read.');}
+  }
+  window.openMusicStudioGate=openGate;
+  ensureScreens();
+})();
 </script>
 </body>
 </html>
