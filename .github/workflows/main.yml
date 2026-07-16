@@ -1,0 +1,99 @@
+name: Publish Neon Drift Music
+
+on:
+  workflow_dispatch:
+    inputs:
+      music_code:
+        description: "Paste the NDMS3 code copied from the Neon Drift Music Studio"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-neon-drift-music
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Open repository files
+        uses: actions/checkout@v5
+
+      - name: Decode and update music-data.json
+        env:
+          MUSIC_CODE: ${{ inputs.music_code }}
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          const code = String(process.env.MUSIC_CODE || '').trim();
+          if (!code.startsWith('NDMS3')) {
+            throw new Error('The pasted value is not a Neon Drift NDMS3 music code.');
+          }
+
+          let incoming;
+          try {
+            const json = Buffer.from(code.slice(5).replace(/\s+/g, ''), 'base64').toString('utf8');
+            incoming = JSON.parse(json);
+          } catch (error) {
+            throw new Error('The music code could not be decoded. Copy it again from the Music Studio.');
+          }
+
+          if (!incoming || incoming.version !== 3) {
+            throw new Error('This music code is not version 3.');
+          }
+          if (!/^(race|battle):\d+$/.test(String(incoming.key || ''))) {
+            throw new Error('The music code has an invalid level key.');
+          }
+          if (!incoming.song || typeof incoming.song !== 'object' || !incoming.song.sections) {
+            throw new Error('The music code does not contain a complete song.');
+          }
+
+          const allowedSections = ['intro', 'driveA', 'driveB', 'chorus', 'lastLap'];
+          for (const name of allowedSections) {
+            const section = incoming.song.sections[name];
+            if (!section || !Array.isArray(section.tracks) || section.tracks.length > 5) {
+              throw new Error(`The ${name} section is missing or has too many tracks.`);
+            }
+            for (const track of section.tracks) {
+              if (!track || !Array.isArray(track.notes) || track.notes.length > 16) {
+                throw new Error(`A track in ${name} has invalid notes.`);
+              }
+            }
+          }
+
+          let file = { version: 3, updatedAt: null, songs: {} };
+          if (fs.existsSync('music-data.json')) {
+            try {
+              file = JSON.parse(fs.readFileSync('music-data.json', 'utf8'));
+            } catch (error) {
+              console.log('The old music file could not be read, so a new one will be created.');
+            }
+          }
+
+          if (!file || typeof file !== 'object') file = {};
+          if (!file.songs || typeof file.songs !== 'object' || Array.isArray(file.songs)) file.songs = {};
+          file.version = 3;
+          file.updatedAt = new Date().toISOString();
+          file.songs[incoming.key] = incoming.song;
+
+          fs.writeFileSync('music-data.json', JSON.stringify(file, null, 2) + '\n');
+          console.log(`Prepared music for ${incoming.key}.`);
+          NODE
+
+      - name: Save music to the repository
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add music-data.json
+
+          if git diff --cached --quiet; then
+            echo "The music file already contains this song."
+          else
+            git commit -m "Update Neon Drift level music"
+            git push
+          fi
