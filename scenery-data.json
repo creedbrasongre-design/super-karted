@@ -1,6 +1,6 @@
 {
   "v": 3,
-  "updatedAt": "2026-07-16T20:49:18.267Z",
+  "updatedAt": "2026-07-16T21:12:15.127Z",
   "catalog": {
     "v": 2,
     "scenes": {
@@ -8330,15 +8330,15 @@
           "id": "SMRMED9T527QTWY",
           "type": "arch",
           "color": "#ffbb00",
-          "solid": true,
+          "solid": false,
           "attach": true,
           "x": 0,
           "y": 0,
           "z": 0,
-          "t": 0.11197,
-          "side": -8.11189,
-          "up": 0.60112,
-          "forward": 13.28307,
+          "t": 0.11583,
+          "side": 2.63475,
+          "up": 0.29056,
+          "forward": -12.84685,
           "rx": 0,
           "ry": 0,
           "rz": 0,
