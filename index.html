@@ -9244,6 +9244,7 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
   const KEY_WORKER_URL='neondrift_scenery_worker_url_v1';
   const KEY_PUBLISH_KEY='neondrift_scenery_publish_key_v1';
   const REMOTE_SCENERY_URL='scenery-data.json';
+  const SCENERY_ACTION_URL='https://github.com/creedbrasongre-design/super-karted/actions/workflows/publish-neon-drift-scenery.yml';
   const EMBEDDED_ID='ndcsEmbeddedScenery';
   const MAX_SHAPES=240;
   const SAFE_COMPLEXITY=900;
@@ -9650,13 +9651,18 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
   }
   async function publishCurrent(){
     const all=loadJSON(KEY_PUBLISHED,{});all[courseName()]=sanitizeShapes(shapes);saveJSON(KEY_PUBLISHED,all);saveDraft(true);markBusy();
-    const room=sendCatalogOnline();setStatus('Publishing '+courseName()+' to the live game code…');
+    const room=sendCatalogOnline(),actionTab=window.open('about:blank','_blank');
+    if(actionTab)try{actionTab.opener=null;}catch(e){}
+    setStatus('Preparing '+courseName()+' for GitHub Actions…');
     try{
-      const result=await publishCatalogToServer();
-      setStatus('Published '+courseName()+' online. GitHub Pages will load it for every player.'+(room?' Players in this room received it immediately.':''));
-      return result;
+      const made=await makeSceneryCode(),copied=await copySceneryCode(made.code);
+      if(actionTab&&!actionTab.closed)actionTab.location.href=SCENERY_ACTION_URL;else window.open(SCENERY_ACTION_URL,'_blank','noopener');
+      setStatus('Scenery code ready'+(copied?' and copied':'')+'. In GitHub Actions, paste it into SCENERY CODE and run the workflow.'+(room?' Players in this room received it immediately.':''));
+      alert('Scenery code '+(copied?'copied':'prepared')+'. In GitHub Actions, click Run workflow, paste it into SCENERY CODE, and run it. After the green check, every player will load the update.');
+      return made;
     }catch(e){
-      setStatus('Saved locally'+(room?' and sent to this room':'')+', but the permanent online publish failed: '+e.message);
+      if(actionTab&&!actionTab.closed)try{actionTab.close();}catch(closeError){}
+      setStatus('Saved locally'+(room?' and sent to this room':'')+', but the GitHub Actions code could not be prepared: '+e.message);
       throw e;
     }
   }
@@ -9671,7 +9677,7 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
     const ok=await loadRemoteCatalog(true);
     setStatus(ok?('Loaded live scenery'+(remoteUpdatedAt?' from '+remoteUpdatedAt:'')+'.'):'Could not load the live scenery file yet.');
   }
-  async function restoreOriginal(){ pushHistory();const nm=courseName(),d=loadJSON(KEY_DRAFT,{}),p=loadJSON(KEY_PUBLISHED,{});delete d[nm];p[nm]=[];saveJSON(KEY_DRAFT,d);saveJSON(KEY_PUBLISHED,p);shapes=[];selectedId=null;rebuildPreview();renderPanel();sendCatalogOnline();setStatus('Restoring the original scenery online…');try{await publishCatalogToServer();setStatus('Restored the original scenery for '+nm+' online.');}catch(e){setStatus('Restored locally, but the online update failed: '+e.message);} }
+  async function restoreOriginal(){ pushHistory();const nm=courseName(),d=loadJSON(KEY_DRAFT,{}),p=loadJSON(KEY_PUBLISHED,{});delete d[nm];p[nm]=[];saveJSON(KEY_DRAFT,d);saveJSON(KEY_PUBLISHED,p);shapes=[];selectedId=null;rebuildPreview();renderPanel();setStatus('Original scenery restored locally. Preparing its GitHub Actions update…');try{await publishCurrent();}catch(e){} }
   function copyToCourse(){ const sel=document.getElementById('ndcsCopyCourse'),target=sel&&sel.value;if(!target)return;const all=loadJSON(KEY_DRAFT,{});all[target]=sanitizeShapes(shapes);saveJSON(KEY_DRAFT,all);setStatus('Copied this design into the draft for '+target+'.'); }
   function applyDraftAll(){ const all=loadJSON(KEY_DRAFT,{});COURSES.forEach(c=>{all[c.name]=sanitizeShapes(shapes);});saveJSON(KEY_DRAFT,all);setStatus('Copied this design into the draft for every race course. Check each course before publishing.'); }
   function ndcsBytesToBase64(bytes){ let out=''; const step=0x8000; for(let i=0;i<bytes.length;i+=step)out+=String.fromCharCode.apply(null,bytes.subarray(i,Math.min(bytes.length,i+step))); return btoa(out); }
@@ -9701,15 +9707,21 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
     const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
     return await new Response(stream).text();
   }
+  async function makeSceneryCode(){
+    const json=JSON.stringify(ndcsCompactPayload()),bytes=await ndcsGzipText(json),code='NDCS3'+ndcsBytesToBase64(bytes);
+    return {json,code,pct:Math.max(0,Math.round((1-code.length/Math.max(1,json.length))*100))};
+  }
+  async function copySceneryCode(code){
+    const ta=document.getElementById('ndcsCode');if(ta){ta.value=code;ta.focus();ta.select();}
+    let copied=false;try{if(navigator.clipboard&&isSecureContext){await navigator.clipboard.writeText(code);copied=true;}}catch(e){}
+    if(!copied&&ta){try{copied=!!document.execCommand('copy');}catch(e){}}
+    return copied;
+  }
   async function exportCode(){
     const ta=document.getElementById('ndcsCode'); setStatus('Compressing scenery for GitHub Actions…');
     try{
-      const json=JSON.stringify(ndcsCompactPayload()),bytes=await ndcsGzipText(json),code='NDCS3'+ndcsBytesToBase64(bytes);
-      if(ta){ta.value=code;ta.focus();ta.select();}
-      let copied=false; try{if(navigator.clipboard&&isSecureContext){await navigator.clipboard.writeText(code);copied=true;}}catch(e){}
-      if(!copied&&ta){try{copied=document.execCommand('copy');}catch(e){}}
-      const pct=Math.max(0,Math.round((1-code.length/Math.max(1,json.length))*100));
-      setStatus('Compressed scenery code ready: '+code.length.toLocaleString()+' characters ('+pct+'% smaller). '+(copied?'Copied to clipboard.':'Copy it from the box.'));
+      const made=await makeSceneryCode(),copied=await copySceneryCode(made.code);
+      setStatus('Compressed scenery code ready: '+made.code.length.toLocaleString()+' characters ('+made.pct+'% smaller). '+(copied?'Copied to clipboard.':'Copy it from the box.'));
     }catch(e){
       setStatus('Compressed export failed: '+e.message);
     }
@@ -9831,9 +9843,8 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
 <div id="ndcsPosRead" class="ndcs-read"></div><div class="ndcs-label" style="margin-top:8px">MOVE ALONG THE COURSE</div><div class="ndcs-grid6"><button class="ndcs-mini" data-move="forward" data-amt="60">FORWARD</button><button class="ndcs-mini" data-move="up" data-amt="40">UP</button><button class="ndcs-mini" data-move="side" data-amt="60">LEFT</button><button class="ndcs-mini" data-move="forward" data-amt="-60">BACK</button><button class="ndcs-mini" data-move="up" data-amt="-40">DOWN</button><button class="ndcs-mini" data-move="side" data-amt="-60">RIGHT</button></div>
 <div class="ndcs-label" style="margin-top:8px">SIZE X / Y / Z</div><div class="ndcs-row"><input id="ndcsSX" type="number" min="0.08" max="20" step="0.1"><input id="ndcsSY" type="number" min="0.08" max="20" step="0.1"><input id="ndcsSZ" type="number" min="0.08" max="20" step="0.1"></div>
 <div class="ndcs-label">ROTATION X / Y / Z</div><div class="ndcs-row"><input id="ndcsRX" type="number" step="15"><input id="ndcsRY" type="number" step="15"><input id="ndcsRZ" type="number" step="15"></div><div class="ndcs-grid6"><button class="ndcs-mini" data-rot="rx" data-amt="15">X +15°</button><button class="ndcs-mini" data-rot="ry" data-amt="15">Y +15°</button><button class="ndcs-mini" data-rot="rz" data-amt="15">Z +15°</button><button class="ndcs-mini" data-flip="flipX">FLIP X</button><button class="ndcs-mini" data-flip="flipY">FLIP Y</button><button class="ndcs-mini" data-flip="flipZ">FLIP Z</button></div><div class="ndcs-row"><button class="ndcs-mini" id="ndcsDuplicate">DUPLICATE</button><button class="ndcs-mini" id="ndcsMirror">MIRROR SIDE</button><button class="ndcs-mini danger" id="ndcsDelete">DELETE</button></div></div>
-<div class="ndcs-sec"><div class="ndcs-label">SERVER SETUP — ONE TIME</div><input id="ndcsWorkerUrl" type="url" placeholder="https://your-worker.workers.dev" style="width:100%"><div class="ndcs-row"><input id="ndcsPublishKey" type="password" placeholder="PRIVATE PUBLISH KEY" style="flex:1"><label class="ndcs-check"><input id="ndcsRememberKey" type="checkbox" checked> REMEMBER</label></div><button class="ndcs-mini" id="ndcsSaveServer" style="width:100%">SAVE SERVER SETTINGS</button><div class="ndcs-read" style="margin-top:6px">The GitHub token stays only inside Cloudflare. This game stores only the Worker URL and your separate publish key on this device.</div></div>
-<div class="ndcs-sec"><div class="ndcs-label">SAVE / UPDATE THE LIVE GAME</div><div class="ndcs-row"><button class="ndcs-mini" id="ndcsSaveDraft">SAVE DRAFT</button><button class="ndcs-mini gold" id="ndcsPublish">PUBLISH GAME ONLINE</button><button class="ndcs-mini danger" id="ndcsRestore">RESTORE ORIGINAL</button></div><button class="ndcs-mini" id="ndcsRefreshOnline" style="width:100%;margin-top:5px">↻ REFRESH FROM ONLINE GAME CODE</button><div class="ndcs-read" style="margin-top:6px">Publish commits scenery-data.json into the GitHub repository. Every player loads that file automatically. Players in your current room also receive the change immediately.</div><div class="ndcs-row"><select id="ndcsCopyCourse" style="flex:1"></select><button class="ndcs-mini" id="ndcsCopy">COPY DRAFT</button></div><button class="ndcs-mini" id="ndcsAll">APPLY DRAFT TO ALL COURSES</button></div>
-<div class="ndcs-sec"><div class="ndcs-label">SHARE / BACKUP</div><textarea id="ndcsCode" placeholder="Export or paste a scenery code"></textarea><div class="ndcs-row"><button class="ndcs-mini" id="ndcsExport">EXPORT</button><button class="ndcs-mini" id="ndcsImport">IMPORT</button></div></div><div id="ndcsStatus" class="ndcs-status"></div></div>
+<div class="ndcs-sec"><div class="ndcs-label">SAVE / UPDATE THE LIVE GAME</div><div class="ndcs-row"><button class="ndcs-mini" id="ndcsSaveDraft">SAVE DRAFT</button><button class="ndcs-mini gold" id="ndcsPublish">PUBLISH WITH GITHUB ACTIONS</button><button class="ndcs-mini danger" id="ndcsRestore">RESTORE ORIGINAL</button></div><button class="ndcs-mini" id="ndcsRefreshOnline" style="width:100%;margin-top:5px">↻ REFRESH FROM ONLINE GAME CODE</button><div class="ndcs-read" style="margin-top:6px">Publish now works like the Music Studio: it copies the scenery code and opens the correct GitHub Action. Paste it into SCENERY CODE and run the workflow. After its green check, every player loads scenery-data.json automatically.</div><div class="ndcs-row"><select id="ndcsCopyCourse" style="flex:1"></select><button class="ndcs-mini" id="ndcsCopy">COPY DRAFT</button></div><button class="ndcs-mini" id="ndcsAll">APPLY DRAFT TO ALL COURSES</button></div>
+<div class="ndcs-sec"><div class="ndcs-label">GITHUB ACTIONS CODE / BACKUP</div><textarea id="ndcsCode" placeholder="Your GitHub Actions scenery code will appear here"></textarea><div class="ndcs-row"><button class="ndcs-mini" id="ndcsExport">COPY CODE</button><button class="ndcs-mini" id="ndcsImport">IMPORT</button></div></div><div id="ndcsStatus" class="ndcs-status"></div></div>
 <div class="ndcs-help">LEFT CLICK: place or drag · RIGHT CLICK / ALT-DRAG: orbit · MOUSE WHEEL: zoom · “Attach to road” keeps the object aligned when the course changes.</div>`;document.body.appendChild(root);statusEl=root.querySelector('#ndcsStatus');
     pixelRoot=document.createElement('div');pixelRoot.id='ndcsPixel';pixelRoot.innerHTML=`<div class="ndv-card"><h2>3D PIXEL / VOXEL SHAPE EDITOR</h2><div style="color:#cdbce6;font-size:12px;margin:5px 0 12px">Each square becomes a small 3D cube. Draw one horizontal layer at a time, then stack the layers.</div><div class="ndv-layout"><div><canvas id="ndvCanvas" width="520" height="520"></canvas></div><div><div class="ndcs-label">GRID SIZE</div><select id="ndvSize"><option>8</option><option selected>12</option><option>16</option><option>20</option></select><div class="ndcs-label" style="margin-top:10px">HEIGHT LAYER: <span id="ndvLayerRead">1 / 12</span></div><input id="ndvLayer" type="range" min="0" max="11" value="0" style="width:100%"><div class="ndcs-row"><button class="ndcs-mini sel" id="ndvDraw">DRAW</button><button class="ndcs-mini" id="ndvErase">ERASE</button><input id="ndvColor" type="color" value="#00e5ff"></div><div class="ndcs-row"><button class="ndcs-mini" id="ndvFill">FILL LAYER</button><button class="ndcs-mini" id="ndvClearLayer">CLEAR LAYER</button><button class="ndcs-mini danger" id="ndvClearAll">CLEAR ALL</button></div><div class="ndcs-row"><button class="ndcs-mini" id="ndvMirrorX">MIRROR X</button><button class="ndcs-mini" id="ndvMirrorZ">MIRROR Z</button><button class="ndcs-mini" id="ndvRotate">ROTATE 90°</button></div><div class="ndcs-label" style="margin-top:10px">MODEL NAME</div><input id="ndvName" maxlength="22" placeholder="PIXEL BUILDING" style="width:100%"><div class="ndcs-row"><button class="ndcs-mini gold" id="ndvSave">SAVE MODEL</button><button class="ndcs-mini" id="ndvUse">USE / PLACE MODEL</button><button class="ndcs-mini" id="ndvClose">CLOSE</button></div><div class="ndcs-label">SAVED MODELS</div><div id="ndvModels" class="ndv-models"></div><div id="ndvStatus" class="ndcs-status"></div></div></div></div>`;document.body.appendChild(pixelRoot);
     try{bindUI();ndcsUIBound=true;ndcsUIError=null;}catch(err){ndcsUIError=err;console.error('Scenery Studio controls could not bind yet',err);}addMenuButton();
@@ -9888,8 +9899,7 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
     document.getElementById('ndcsSelType').onchange=e=>{const s=selected();if(!s)return;pushHistory();s.type=e.target.value;if(s.type==='voxel'&&!s.modelData){const models=loadJSON(KEY_MODELS,{}),m=models[currentVoxelModel]||Object.values(models)[0];if(m){s.modelName=m.name||'';s.modelData=copy(m);}}rebuildPreview('selected');renderPanel();};
     document.getElementById('ndcsSelColor').onpointerdown=()=>{if(selected())pushHistory();};document.getElementById('ndcsSelColor').oninput=e=>{const s=selected();if(!s)return;s.color=e.target.value;rebuildPreview('selected');};
     document.getElementById('ndcsSelSolid').onchange=e=>{const s=selected();if(!s)return;pushHistory();s.solid=e.target.checked;markBusy();renderPanel();};document.getElementById('ndcsSelAttach').onchange=e=>{const s=selected();if(!s)return;pushHistory();toggleAttach(s,e.target.checked);rebuildPreview('transform');renderPanel();};
-    document.getElementById('ndcsSaveDraft').onclick=()=>saveDraft();document.getElementById('ndcsPublish').onclick=()=>publishCurrent().catch(()=>{});document.getElementById('ndcsRestore').onclick=restoreOriginal;document.getElementById('ndcsRefreshOnline').onclick=refreshOnlineScenery;document.getElementById('ndcsSaveServer').onclick=saveServerSettings;document.getElementById('ndcsCopy').onclick=copyToCourse;document.getElementById('ndcsAll').onclick=applyDraftAll;document.getElementById('ndcsExport').onclick=exportCode;document.getElementById('ndcsImport').onclick=importCode;
-    document.getElementById('ndcsWorkerUrl').value=getWorkerUrl();document.getElementById('ndcsPublishKey').value=getPublishKey();document.getElementById('ndcsRememberKey').checked=!!localStorage.getItem(KEY_PUBLISH_KEY);
+    document.getElementById('ndcsSaveDraft').onclick=()=>saveDraft();document.getElementById('ndcsPublish').onclick=()=>publishCurrent().catch(()=>{});document.getElementById('ndcsRestore').onclick=restoreOriginal;document.getElementById('ndcsRefreshOnline').onclick=refreshOnlineScenery;document.getElementById('ndcsCopy').onclick=copyToCourse;document.getElementById('ndcsAll').onclick=applyDraftAll;document.getElementById('ndcsExport').onclick=exportCode;document.getElementById('ndcsImport').onclick=importCode;
     document.getElementById('ndcsPixelOpen').onclick=()=>openPixelEditor();
     renderer.domElement.addEventListener('pointerdown',onPointerDown);renderer.domElement.addEventListener('pointermove',onPointerMove);renderer.domElement.addEventListener('pointerup',onPointerUp);renderer.domElement.addEventListener('pointercancel',onPointerUp);renderer.domElement.addEventListener('wheel',onWheel,{passive:false});renderer.domElement.addEventListener('contextmenu',e=>{if(active)e.preventDefault();});
     addEventListener('keydown',e=>{if(!active||pixelRoot.classList.contains('show')||isTypingTarget(e.target)||isTypingTarget(document.activeElement))return;if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();deleteSelected();}else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();}else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();redo();}else if(e.key==='Escape')exitStudio();});
