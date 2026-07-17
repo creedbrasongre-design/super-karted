@@ -5512,6 +5512,7 @@ function loop(now){
   } else AUD.engineOff();
   if(state==='preview'){ stPvAng+=dt*0.32; const c=stPvCenter, R=stPvRad;
     camera.position.set(c.x+Math.cos(stPvAng)*R, c.y+R*0.6, c.z+Math.sin(stPvAng)*R); camera.lookAt(c.x, c.y-70, c.z); }
+  if(window.NDCSUpdate&&(state==='race'||state==='scenery'||state==='countdown'))window.NDCSUpdate(dt);
   renderer.render(scene,camera); ndPerfRecordFrame(now); requestAnimationFrame(loop); }
 
 const hex=n=>'#'+n.toString(16).padStart(6,'0');
@@ -7201,7 +7202,7 @@ requestAnimationFrame(loop);
   }
   function applyWeatherVisuals(){
     if(!scene || typeof makeSky!=='function') return;
-    if(!weatherEnabled){ removeWeatherFx(); weatherFlashT=0; return; }
+    if(!weatherEnabled){ removeWeatherFx(); weatherFlashT=0;if(window.NDCSWeatherChanged)window.NDCSWeatherChanged('clear','mild',1);return; }
     const w=wxDef(weatherActive), t=tempDef(weatherTempActive), vis=weatherVisibilityScale(), p=weatherPowerFactor();
     if(w.key!=='clear' && w.sky) scene.background=makeSky(w.sky);
     else if(t.key==='heatwave') scene.background=makeSky(['#190805','#612107','#ffb15a']);
@@ -7214,6 +7215,7 @@ requestAnimationFrame(loop);
     else if(w.key==='windy') scene.fog=new THREE.Fog(w.fog||0x20485e, 1400*vis, 5400*vis);
     else scene.fog=new THREE.Fog(0x5a1a55, 1800*vis, 7200*vis);
     makeWeatherFx(w.key);
+    if(window.NDCSWeatherChanged)window.NDCSWeatherChanged(w.key,t.key,p);
   }
   function updateWeatherFx(dt){
     if(!scene || !weatherEnabled) return;
@@ -9240,6 +9242,7 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
   const PASS='13795482';
   const KEY_DRAFT='neondrift_course_scenery_drafts_v1';
   const KEY_PUBLISHED='neondrift_course_scenery_published_v1';
+  const KEY_PUBLISH_STATE='neondrift_course_scenery_publish_state_v1';
   const KEY_MODELS='neondrift_voxel_models_v1';
   const KEY_WORKER_URL='neondrift_scenery_worker_url_v1';
   const KEY_PUBLISH_KEY='neondrift_scenery_publish_key_v1';
@@ -9255,6 +9258,11 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
     ['lightpole','LIGHT POLE'],['hologram','HOLOGRAM PANEL'],['voxel','CUSTOM PIXEL SHAPE']
   ];
   const TYPE_LABEL=Object.fromEntries(TYPES);
+  const BEHAVIORS=[
+    ['none','NONE / STATIC'],['spin','SLOW SPIN'],['bob','FLOAT / BOB'],['sway','GENTLE SWAY'],
+    ['pulse','NEON PULSE'],['color','COLOR CYCLE'],['flicker','HOLOGRAM FLICKER']
+  ];
+  const BEHAVIOR_LABEL=Object.fromEntries(BEHAVIORS);
   const BASE={
     cube:{w:100,h:100,d:100}, block:{w:180,h:90,d:100}, cylinder:{w:90,h:130,d:90}, sphere:{w:110,h:110,d:110}, cone:{w:110,h:140,d:110},
     arch:{w:210,h:180,d:60}, wall:{w:240,h:110,d:34}, pillar:{w:76,h:210,d:76}, railing:{w:240,h:90,d:28}, ramp:{w:180,h:82,d:240},
@@ -9274,9 +9282,10 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
 
   let unlocked=false, active=false, courseIndex=0, shapes=[], selectedId=null, tool='place';
   let newType='cube', newColor='#00e5ff', newSolid=true, newAttach=true, currentVoxelModel='';
-  let remoteCatalog={}, remoteUpdatedAt='', remoteLoadPromise=null;
-  let history=[], future=[], runtimeGroup=null, runtimeColliders=[], runtimeRamps=[], selectionHelper=null, pickPlane=null;
+  let remoteCatalog={}, remoteUpdatedAt='', remoteLoadPromise=null, remoteChecked=false;
+  let history=[], future=[], runtimeGroup=null, runtimeColliders=[], runtimeRamps=[], runtimeShapes=[], selectionHelper=null, pickPlane=null;
   let meshById=new Map(), busyUntil=0, studioOldPixelRatio=1;
+  let runtimeTime=0, weatherPreview='game', runtimeWeather={kind:'clear',temp:'mild',power:1};
   const geoCache=new Map(), matCache=new Map();
   let cameraRig={target:new THREE.Vector3(),yaw:0.75,pitch:0.72,dist:1800};
   let dragMode='', dragShape=false, dragStart=null, orbitStart=null, pointerId=null, dragPlaneY=0;
@@ -9285,7 +9294,7 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
   let ndcsUIBound=false,ndcsUICreating=false,ndcsUIError=null;
 
   function markBusy(ms=520){ busyUntil=Math.max(busyUntil,performance.now()+ms); }
-  window.NDCSIsBusy=()=>active&&performance.now()<busyUntil;
+  window.NDCSIsBusy=()=>active&&(performance.now()<busyUntil||shapes.some(s=>s.behavior!=='none'));
   function hashText(v){let h=2166136261>>>0;for(const ch of String(v||'')){h^=ch.charCodeAt(0);h=Math.imul(h,16777619)>>>0;}return h.toString(36);}
   function sanitizeCatalog(raw){const out={};if(!raw||typeof raw!=='object')return out;Object.keys(raw).slice(0,COURSES.length+40).forEach(k=>out[String(k).slice(0,60)]=sanitizeShapes(raw[k]));return out;}
   function unpackCatalog(raw){
@@ -9329,8 +9338,9 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
       try{
         const sep=REMOTE_SCENERY_URL.includes('?')?'&':'?';
         const r=await fetch(REMOTE_SCENERY_URL+sep+'v='+Date.now(),{cache:'no-store'});
-        if(!r.ok){if(r.status!==404)throw new Error('HTTP '+r.status);return false;}
+        if(!r.ok){if(r.status!==404)throw new Error('HTTP '+r.status);remoteChecked=true;remoteCatalog={};renderPublishManager();return false;}
         const raw=await r.json();remoteCatalog=readRemotePayload(raw);markBusy(500);
+        remoteChecked=true;reconcilePublishStates();renderPublishManager();
         if(active){const nm=courseName(),d=loadJSON(KEY_DRAFT,{});if(!d[nm]){shapes=sanitizeShapes(publishedCatalog()[nm]);selectedId=null;refreshRuntimeOnly();renderPanel();}}
         return true;
       }catch(e){console.warn('Could not load online scenery',e);return false;}
@@ -9343,6 +9353,7 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
   function selected(){ return shapes.find(s=>s.id===selectedId)||null; }
   function sanitizeShape(raw){
     const type=TYPE_LABEL[raw&&raw.type]?raw.type:'cube';
+    const behavior=BEHAVIOR_LABEL[raw&&raw.behavior]?raw.behavior:'none';
     const s={
       id:String(raw&&raw.id||uid()), type, color:String(raw&&raw.color||'#00e5ff'), solid:raw&&raw.solid!==false, attach:!!(raw&&raw.attach),
       x:Number(raw&&raw.x)||0,y:Number(raw&&raw.y)||0,z:Number(raw&&raw.z)||0,t:clamp(Number(raw&&raw.t)||0,0,1),
@@ -9350,6 +9361,8 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
       rx:Number(raw&&raw.rx)||0,ry:Number(raw&&raw.ry)||0,rz:Number(raw&&raw.rz)||0,
       sx:clamp(Math.abs(Number(raw&&raw.sx)||1),0.08,20),sy:clamp(Math.abs(Number(raw&&raw.sy)||1),0.08,20),sz:clamp(Math.abs(Number(raw&&raw.sz)||1),0.08,20),
       flipX:!!(raw&&raw.flipX),flipY:!!(raw&&raw.flipY),flipZ:!!(raw&&raw.flipZ),
+      weatherReact:raw&&raw.weatherReact!==false,behavior,behaviorGame:!!(raw&&raw.behaviorGame),
+      behaviorSpeed:clamp(Number(raw&&raw.behaviorSpeed)||1,.15,4),behaviorAmount:clamp(Number(raw&&raw.behaviorAmount)||1,.1,3),
       modelName:String(raw&&raw.modelName||''),modelData:raw&&raw.modelData?copy(raw.modelData):null
     };
     if(!/^#[0-9a-f]{6}$/i.test(s.color)) s.color='#00e5ff';
@@ -9394,6 +9407,52 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
     const key='s:'+col+':'+em.toFixed(3)+':'+opacity.toFixed(3);let m=matCache.get(key);if(!m){m=new THREE.MeshStandardMaterial({color:col,emissive:col,emissiveIntensity:em,roughness:0.66,metalness:0.16,transparent:opacity<1,opacity,side:THREE.DoubleSide,depthWrite:opacity>.35});matCache.set(key,m);}return m;
   }
   function basicMat(col,opacity=1){const key='b:'+col+':'+opacity.toFixed(3);let m=matCache.get(key);if(!m){m=new THREE.MeshBasicMaterial({color:col,transparent:opacity<1,opacity,side:THREE.DoubleSide,depthWrite:opacity>.35});matCache.set(key,m);}return m;}
+  function behaviorRuns(s){return !!(s&&s.behavior!=='none'&&(active||s.behaviorGame));}
+  function currentWeatherLook(){
+    if(active&&weatherPreview!=='game'){
+      if(weatherPreview==='rain')return {kind:'rain',temp:'mild',power:1};
+      if(weatherPreview==='snow')return {kind:'snow',temp:'freezing',power:1};
+      if(weatherPreview==='cold')return {kind:'cold',temp:'deepfreeze',power:1};
+      return {kind:'clear',temp:'mild',power:1};
+    }
+    let kind=runtimeWeather.kind,temp=runtimeWeather.temp;
+    try{if(window.NDWeatherCurrent)kind=window.NDWeatherCurrent()||kind;if(window.NDWeatherTemperature)temp=window.NDWeatherTemperature()||temp;}catch(e){}
+    return {kind:kind||'clear',temp:temp||'mild',power:runtimeWeather.power||1};
+  }
+  function rememberMaterialBase(m){
+    if(!m||m.userData&&m.userData.ndcsBase)return;
+    m.userData=m.userData||{};m.userData.ndcsBase={
+      color:m.color?m.color.getHex():null,emissive:m.emissive?m.emissive.getHex():null,
+      emissiveIntensity:Number(m.emissiveIntensity)||0,roughness:m.roughness,metalness:m.metalness,
+      opacity:m.opacity==null?1:m.opacity,transparent:!!m.transparent,depthWrite:m.depthWrite!==false
+    };
+  }
+  function prepareShapeMaterials(g){
+    const mats=[];g.traverse(o=>{if(!o.material)return;if(Array.isArray(o.material)){o.material=o.material.map(m=>m.clone());o.material.forEach(m=>{rememberMaterialBase(m);mats.push(m);});}else{o.material=o.material.clone();rememberMaterialBase(o.material);mats.push(o.material);}});g.userData.ndcsMaterials=mats;return mats;
+  }
+  function applyShapeAppearance(s,g,time=runtimeTime){
+    if(!s||!g)return;const w=currentWeatherLook(),wet=s.weatherReact&&['rain','storm'].includes(w.kind),cold=s.weatherReact&&(['snow','cold'].includes(w.kind)||['freezing','deepfreeze'].includes(w.temp));
+    const run=behaviorRuns(s),phase=time*Math.max(.15,s.behaviorSpeed||1),pulse=.5+.5*Math.sin(phase*3.2),mats=g.userData.ndcsMaterials||[];
+    mats.forEach(m=>{const b=m.userData&&m.userData.ndcsBase;if(!b)return;
+      if(m.color&&b.color!=null)m.color.setHex(b.color);if(m.emissive&&b.emissive!=null)m.emissive.setHex(b.emissive);
+      if(m.emissiveIntensity!=null)m.emissiveIntensity=b.emissiveIntensity;if(b.roughness!=null)m.roughness=b.roughness;if(b.metalness!=null)m.metalness=b.metalness;
+      m.opacity=b.opacity;m.transparent=b.transparent;m.depthWrite=b.depthWrite;
+      if(wet){if(m.color)m.color.lerp(new THREE.Color(0x071a24),.22);if(m.roughness!=null)m.roughness=.12;if(m.metalness!=null)m.metalness=Math.min(1,(b.metalness||0)+.24);if(m.emissiveIntensity!=null)m.emissiveIntensity*=.72;}
+      if(cold){const frost=w.temp==='deepfreeze'?0.58:.42;if(m.color)m.color.lerp(new THREE.Color(0xd8f5ff),frost);if(m.emissive)m.emissive.lerp(new THREE.Color(0x78dfff),.36);if(m.roughness!=null)m.roughness=Math.max(.72,b.roughness||0);if(m.metalness!=null)m.metalness=Math.min(.28,b.metalness||0);if(m.emissiveIntensity!=null)m.emissiveIntensity=Math.max(m.emissiveIntensity,.12);}
+      if(run&&s.behavior==='pulse'&&m.emissiveIntensity!=null)m.emissiveIntensity=Math.max(.08,b.emissiveIntensity)*(1.1+pulse*2.1*s.behaviorAmount);
+      if(run&&s.behavior==='color'&&m.color)m.color.offsetHSL((phase*.035)%1,0,.08*Math.sin(phase));
+      if(run&&s.behavior==='flicker'){const flash=Math.sin(phase*17)+Math.sin(phase*31)>.55?.42:1;m.transparent=true;m.opacity=b.opacity*(.48+flash*.52);m.depthWrite=m.opacity>.65;}
+      m.needsUpdate=true;
+    });
+  }
+  function applyShapeMotion(s,g,time=runtimeTime){
+    syncShapeTransform(s,g);if(!behaviorRuns(s))return;const phase=time*Math.max(.15,s.behaviorSpeed||1),amt=s.behaviorAmount||1;
+    if(s.behavior==='spin')g.rotation.y+=phase*.65*amt;
+    else if(s.behavior==='bob')g.position.y+=Math.sin(phase*2.2)*42*amt;
+    else if(s.behavior==='sway')g.rotation.z+=Math.sin(phase*1.8)*.20*amt;
+    g.updateMatrixWorld(true);
+  }
+  function refreshAllAppearances(){runtimeShapes.forEach(r=>applyShapeAppearance(r.shape,r.object));}
   function tagObject(o,id){ o.userData.ndcsId=id; if(o.children) o.children.forEach(ch=>tagObject(ch,id)); }
   function wedgeGeometry(w,h,d){
     const x=w/2,z=d/2,A=[-x,0,-z],B=[x,0,-z],C=[x,0,z],D=[-x,0,z],E=[-x,h,z],F=[x,h,z],tri=(...p)=>p.flat();
@@ -9432,13 +9491,13 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
         break;
       }
     }
-    syncShapeTransform(s,g); tagObject(g,s.id); g.userData.ndcsRoot=true; return g;
+    syncShapeTransform(s,g);prepareShapeMaterials(g);tagObject(g,s.id);g.userData.ndcsRoot=true;applyShapeAppearance(s,g);return g;
   }
   function syncShapeTransform(s,g){if(!s||!g)return;const p=poseOf(s);g.position.set(p.x,p.y,p.z);g.rotation.order='XYZ';g.rotation.set(p.rx,p.ry,p.rz);g.scale.set((s.flipX?-1:1)*s.sx,(s.flipY?-1:1)*s.sy,(s.flipZ?-1:1)*s.sz);g.updateMatrixWorld(true);}
-  function addShapeObject(s){if(!runtimeGroup||!s)return null;const m=buildShapeMesh(s);runtimeGroup.add(m);meshById.set(s.id,m);return m;}
-  function removeShapeObject(id){const m=meshById.get(id);if(m&&m.parent)m.parent.remove(m);meshById.delete(id);removeShapePhysics(id);}
+  function addShapeObject(s){if(!runtimeGroup||!s)return null;const m=buildShapeMesh(s);runtimeGroup.add(m);meshById.set(s.id,m);runtimeShapes.push({shape:s,object:m});return m;}
+  function removeShapeObject(id){const m=meshById.get(id);if(m&&m.parent)m.parent.remove(m);meshById.delete(id);runtimeShapes=runtimeShapes.filter(r=>r.shape.id!==id);removeShapePhysics(id);}
   function replaceShapeObject(s){if(!s)return;removeShapeObject(s.id);addShapeObject(s);registerSolid(s);refreshSelectionHelper();markBusy();}
-  function updateShapeObject(s){if(!s)return;const m=meshById.get(s.id);if(m){syncShapeTransform(s,m);updateHelper();}else addShapeObject(s);removeShapePhysics(s.id);registerSolid(s);markBusy();}
+  function updateShapeObject(s){if(!s)return;const m=meshById.get(s.id);if(m){applyShapeMotion(s,m);applyShapeAppearance(s,m);updateHelper();}else addShapeObject(s);removeShapePhysics(s.id);registerSolid(s);markBusy();}
 
   function dimsOf(s){
     if(s.type==='voxel'){
@@ -9568,7 +9627,7 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
     addBoxCollider(s,p,0,0,d.w,d.d,0,d.h);
   }
   function clearSelectionHelper(){if(!selectionHelper)return;if(selectionHelper.parent)selectionHelper.parent.remove(selectionHelper);try{selectionHelper.geometry&&selectionHelper.geometry.dispose();}catch(e){}try{selectionHelper.material&&selectionHelper.material.dispose();}catch(e){}selectionHelper=null;}
-  function clearRuntime(){runtimeColliders=[];runtimeRamps=[];clearSelectionHelper();runtimeGroup=null;pickPlane=null;meshById=new Map();}
+  function clearRuntime(){runtimeColliders=[];runtimeRamps=[];runtimeShapes=[];clearSelectionHelper();runtimeGroup=null;pickPlane=null;meshById=new Map();}
   window.NDCSBuild=function(course){
     clearRuntime();
     if(!courseGroup||!course)return;
@@ -9606,13 +9665,19 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
       }
     }
   };
+  window.NDCSWeatherChanged=function(kind,temp,power){runtimeWeather={kind:kind||'clear',temp:temp||'mild',power:Number(power)||1};refreshAllAppearances();};
+  window.NDCSUpdate=function(dt){
+    if(!runtimeGroup)return;runtimeTime+=Math.max(0,Math.min(.05,Number(dt)||0));
+    for(const r of runtimeShapes){const s=r.shape,g=r.object;if(!s||!g||!behaviorRuns(s))continue;applyShapeMotion(s,g,runtimeTime);if(['pulse','color','flicker'].includes(s.behavior))applyShapeAppearance(s,g,runtimeTime);}
+    if(active)updateHelper();
+  };
 
   function refreshRuntimeOnly(){
     if(!active||!courseGroup)return;
     try{ coursePlats=coursePlats.filter(p=>!p.ndcs); }catch(e){}
     clearSelectionHelper();
     if(runtimeGroup&&runtimeGroup.parent)runtimeGroup.parent.remove(runtimeGroup);
-    runtimeColliders=[];runtimeRamps=[];meshById=new Map();runtimeGroup=new THREE.Group();runtimeGroup.name='ND COURSE SCENERY';courseGroup.add(runtimeGroup);
+    runtimeColliders=[];runtimeRamps=[];runtimeShapes=[];meshById=new Map();runtimeGroup=new THREE.Group();runtimeGroup.name='ND COURSE SCENERY';courseGroup.add(runtimeGroup);
     shapes.forEach(s=>{try{addShapeObject(s);registerSolid(s);}catch(e){console.warn('Skipped scenery shape',e);}});
     refreshSelectionHelper();markBusy(700);
   }
@@ -9631,7 +9696,38 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
   }
   function updateHelper(){ if(selectionHelper&&selectionHelper.update)selectionHelper.update(); }
 
-  function saveDraft(silent=false){ const all=loadJSON(KEY_DRAFT,{});all[courseName()]=sanitizeShapes(shapes);saveJSON(KEY_DRAFT,all);if(!silent)setStatus('Draft saved for '+courseName()+'.'); }
+  function sceneryHash(a){return hashText(JSON.stringify(sanitizeShapes(a||[]).map(s=>{const q=copy(s);delete q.id;return q;})));}
+  function liveStatusCatalog(){return Object.assign({},embeddedCatalog(),remoteCatalog);}
+  function publishStatusFor(name){
+    const drafts=loadJSON(KEY_DRAFT,{}),live=liveStatusCatalog(),states=loadJSON(KEY_PUBLISH_STATE,{}),hasDraft=Object.prototype.hasOwnProperty.call(drafts,name),hasLive=Object.prototype.hasOwnProperty.call(live,name);
+    const draft=hasDraft?sanitizeShapes(drafts[name]):sanitizeShapes(live[name]||[]),draftHash=sceneryHash(draft),liveHash=sceneryHash(live[name]||[]),pending=states[name];
+    if(pending&&pending.hash===liveHash&&hasLive)return {key:'live',label:'LIVE',draftHash,liveHash};
+    if(pending&&pending.hash===draftHash&&pending.state==='failed')return {key:'failed',label:'FAILED',draftHash,liveHash};
+    if(pending&&pending.hash===draftHash&&pending.state==='publishing')return {key:'publishing',label:'PUBLISHING',draftHash,liveHash};
+    if(!remoteChecked&&!hasLive)return {key:'checking',label:'CHECK LIVE',draftHash,liveHash};
+    if(hasDraft&&draftHash!==liveHash)return {key:'changed',label:hasLive?'CHANGED':'DRAFT ONLY',draftHash,liveHash};
+    if(hasLive||hasDraft)return {key:'live',label:'LIVE',draftHash,liveHash};
+    return {key:'original',label:'ORIGINAL',draftHash,liveHash};
+  }
+  function setPublishState(name,state,hash,message=''){const all=loadJSON(KEY_PUBLISH_STATE,{});all[name]={state,hash,at:Date.now(),message:String(message||'').slice(0,120)};saveJSON(KEY_PUBLISH_STATE,all);renderPublishManager();}
+  function reconcilePublishStates(){
+    const all=loadJSON(KEY_PUBLISH_STATE,{}),live=liveStatusCatalog();let changed=false;
+    Object.keys(all).forEach(name=>{if(Object.prototype.hasOwnProperty.call(live,name)&&all[name].hash===sceneryHash(live[name])){delete all[name];changed=true;}});
+    if(changed)saveJSON(KEY_PUBLISH_STATE,all);
+  }
+  function renderPublishManager(){
+    const box=document.getElementById('ndcsPublishList'),summary=document.getElementById('ndcsPublishSummary');if(!box||!summary)return;
+    const rows=COURSES.map((c,i)=>({c,i,status:publishStatusFor(c.name)})),counts={};rows.forEach(r=>counts[r.status.key]=(counts[r.status.key]||0)+1);
+    summary.textContent=(counts.changed||0)+(counts.failed||0)+' NEED PUBLISHING · '+(counts.publishing||0)+' PUBLISHING · '+(counts.live||0)+' LIVE'+(remoteUpdatedAt?' · CHECKED '+remoteUpdatedAt:'');
+    box.innerHTML=rows.map(r=>'<button class="ndcs-publish-row '+r.status.key+(r.i===courseIndex?' current':'')+'" data-publish-course="'+r.i+'"><span>'+escapeHtml(r.c.name)+'</span><b>'+r.status.label+'</b></button>').join('');
+    box.querySelectorAll('[data-publish-course]').forEach(b=>b.onclick=()=>setCourse(Number(b.dataset.publishCourse)||0));
+  }
+  async function publishNextChanged(){
+    if(active)saveDraft(true);const i=COURSES.findIndex(c=>['changed','failed'].includes(publishStatusFor(c.name).key));
+    if(i<0){setStatus('Publish Manager: there are no changed courses waiting.');return;}setCourse(i);await publishCurrent();
+  }
+
+  function saveDraft(silent=false){ const all=loadJSON(KEY_DRAFT,{});all[courseName()]=sanitizeShapes(shapes);saveJSON(KEY_DRAFT,all);renderPublishManager();if(!silent)setStatus('Draft saved for '+courseName()+'.'); }
   function sendCatalogOnline(){
     const O=window.NDOnline,msg={t:'courseSceneryCatalog',catalog:window.NDCSCatalogSnapshot()};
     if(O&&O.active){if(O.role==='host'&&O._broadcast)O._broadcast(msg);else if(O._send&&O.hostConn)O._send(O.hostConn,msg);if(O.role==='host'&&O._broadcastLobby)O._broadcastLobby();return true;}return false;
@@ -9650,17 +9746,19 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
     return data;
   }
   async function publishCurrent(){
-    const all=loadJSON(KEY_PUBLISHED,{});all[courseName()]=sanitizeShapes(shapes);saveJSON(KEY_PUBLISHED,all);saveDraft(true);markBusy();
+    const nm=courseName(),all=loadJSON(KEY_PUBLISHED,{});all[nm]=sanitizeShapes(shapes);saveJSON(KEY_PUBLISHED,all);saveDraft(true);markBusy();
     const room=sendCatalogOnline(),actionTab=window.open('about:blank','_blank');
     if(actionTab)try{actionTab.opener=null;}catch(e){}
     setStatus('Preparing '+courseName()+' for GitHub Actions…');
     try{
       const made=await makeSceneryCode(),copied=await copySceneryCode(made.code);
+      setPublishState(nm,'publishing',sceneryHash(shapes));
       if(actionTab&&!actionTab.closed)actionTab.location.href=SCENERY_ACTION_URL;else window.open(SCENERY_ACTION_URL,'_blank','noopener');
       setStatus('Scenery code ready'+(copied?' and copied':'')+'. In GitHub Actions, paste it into SCENERY CODE and run the workflow.'+(room?' Players in this room received it immediately.':''));
       alert('Scenery code '+(copied?'copied':'prepared')+'. In GitHub Actions, click Run workflow, paste it into SCENERY CODE, and run it. After the green check, every player will load the update.');
       return made;
     }catch(e){
+      setPublishState(nm,'failed',sceneryHash(shapes),e.message);
       if(actionTab&&!actionTab.closed)try{actionTab.close();}catch(closeError){}
       setStatus('Saved locally'+(room?' and sent to this room':'')+', but the GitHub Actions code could not be prepared: '+e.message);
       throw e;
@@ -9675,11 +9773,12 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
   async function refreshOnlineScenery(){
     setStatus('Checking the live scenery file…');
     const ok=await loadRemoteCatalog(true);
+    reconcilePublishStates();renderPublishManager();
     setStatus(ok?('Loaded live scenery'+(remoteUpdatedAt?' from '+remoteUpdatedAt:'')+'.'):'Could not load the live scenery file yet.');
   }
-  async function restoreOriginal(){ pushHistory();const nm=courseName(),d=loadJSON(KEY_DRAFT,{}),p=loadJSON(KEY_PUBLISHED,{});delete d[nm];p[nm]=[];saveJSON(KEY_DRAFT,d);saveJSON(KEY_PUBLISHED,p);shapes=[];selectedId=null;rebuildPreview();renderPanel();setStatus('Original scenery restored locally. Preparing its GitHub Actions update…');try{await publishCurrent();}catch(e){} }
-  function copyToCourse(){ const sel=document.getElementById('ndcsCopyCourse'),target=sel&&sel.value;if(!target)return;const all=loadJSON(KEY_DRAFT,{});all[target]=sanitizeShapes(shapes);saveJSON(KEY_DRAFT,all);setStatus('Copied this design into the draft for '+target+'.'); }
-  function applyDraftAll(){ const all=loadJSON(KEY_DRAFT,{});COURSES.forEach(c=>{all[c.name]=sanitizeShapes(shapes);});saveJSON(KEY_DRAFT,all);setStatus('Copied this design into the draft for every race course. Check each course before publishing.'); }
+  async function restoreOriginal(){ pushHistory();const nm=courseName(),d=loadJSON(KEY_DRAFT,{}),p=loadJSON(KEY_PUBLISHED,{});delete d[nm];p[nm]=[];saveJSON(KEY_DRAFT,d);saveJSON(KEY_PUBLISHED,p);shapes=[];selectedId=null;rebuildPreview();renderPanel();renderPublishManager();setStatus('Original scenery restored locally. Preparing its GitHub Actions update…');try{await publishCurrent();}catch(e){} }
+  function copyToCourse(){ const sel=document.getElementById('ndcsCopyCourse'),target=sel&&sel.value;if(!target)return;const all=loadJSON(KEY_DRAFT,{});all[target]=sanitizeShapes(shapes);saveJSON(KEY_DRAFT,all);renderPublishManager();setStatus('Copied this design into the draft for '+target+'.'); }
+  function applyDraftAll(){ const all=loadJSON(KEY_DRAFT,{});COURSES.forEach(c=>{all[c.name]=sanitizeShapes(shapes);});saveJSON(KEY_DRAFT,all);renderPublishManager();setStatus('Copied this design into the draft for every race course. Check each course before publishing.'); }
   function ndcsBytesToBase64(bytes){ let out=''; const step=0x8000; for(let i=0;i<bytes.length;i+=step)out+=String.fromCharCode.apply(null,bytes.subarray(i,Math.min(bytes.length,i+step))); return btoa(out); }
   function ndcsBase64ToBytes(text){ const bin=atob(String(text||'').replace(/\s+/g,'')),out=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++)out[i]=bin.charCodeAt(i); return out; }
   function ndcsRoundNumber(v){ return Number.isFinite(v)?Math.round(v*100000)/100000:v; }
@@ -9803,15 +9902,17 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
   function renderPanel(full=true){
     if(!root)return;if(!full){updateSelectedReadout();return;}const courseSel=document.getElementById('ndcsCourse');if(courseSel){courseSel.innerHTML=COURSES.map((c,i)=>'<option value="'+i+'"'+(i===courseIndex?' selected':'')+'>'+escapeHtml(c.name)+'</option>').join('');}
     const copySel=document.getElementById('ndcsCopyCourse');if(copySel){copySel.innerHTML=COURSES.filter((c,i)=>i!==courseIndex).map(c=>'<option value="'+escapeAttr(c.name)+'">'+escapeHtml(c.name)+'</option>').join('');}
-    const obj=document.getElementById('ndcsObjects');if(obj){obj.innerHTML=shapes.length?shapes.map((s,i)=>{const eff=s.solid?(outsideRoadWall(s)?'DECOR OUTSIDE':'SOLID'):'DECOR';return '<button class="ndcs-object '+(s.id===selectedId?'sel':'')+'" data-id="'+s.id+'"><b>'+(i+1)+'. '+escapeHtml(TYPE_LABEL[s.type])+'</b><span>'+eff+(s.attach?' · ROAD':' · WORLD')+'</span></button>';}).join(''):'<div class="ndcs-empty">No shapes yet. Choose a shape, then click the course.</div>';obj.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{selectedId=b.dataset.id;refreshSelectionHelper();renderPanel();});}
+    const obj=document.getElementById('ndcsObjects');if(obj){obj.innerHTML=shapes.length?shapes.map((s,i)=>{const eff=s.solid?(outsideRoadWall(s)?'DECOR OUTSIDE':'SOLID'):'DECOR',behavior=s.behavior!=='none'?(' · '+BEHAVIOR_LABEL[s.behavior]+(s.behaviorGame?' IN GAME':' STUDIO')):'';return '<button class="ndcs-object '+(s.id===selectedId?'sel':'')+'" data-id="'+s.id+'"><b>'+(i+1)+'. '+escapeHtml(TYPE_LABEL[s.type])+'</b><span>'+eff+(s.attach?' · ROAD':' · WORLD')+(s.weatherReact?' · WEATHER':'')+behavior+'</span></button>';}).join(''):'<div class="ndcs-empty">No shapes yet. Choose a shape, then click the course.</div>';obj.querySelectorAll('[data-id]').forEach(b=>b.onclick=()=>{selectedId=b.dataset.id;refreshSelectionHelper();renderPanel();});}
     const s=selected(),box=document.getElementById('ndcsSelected');if(box){box.style.display=s?'block':'none';if(s){
       setValue('ndcsSelType',s.type);setValue('ndcsSelColor',s.color);setChecked('ndcsSelSolid',s.solid);setChecked('ndcsSelAttach',s.attach);
+      setChecked('ndcsWeatherReact',s.weatherReact);setValue('ndcsBehavior',s.behavior);setChecked('ndcsBehaviorGame',s.behaviorGame);setValue('ndcsBehaviorSpeed',s.behaviorSpeed);setValue('ndcsBehaviorAmount',s.behaviorAmount);setValue('ndcsWeatherPreview',weatherPreview);
       setValue('ndcsSX',s.sx);setValue('ndcsSY',s.sy);setValue('ndcsSZ',s.sz);setValue('ndcsRX',Math.round(deg(s.rx)));setValue('ndcsRY',Math.round(deg(s.ry)));setValue('ndcsRZ',Math.round(deg(s.rz)));
       updateSelectedReadout();
     }}
     document.querySelectorAll('[data-tool]').forEach(b=>b.classList.toggle('sel',b.dataset.tool===tool));
     const count=document.getElementById('ndcsCount');if(count){const cx=complexityOf();count.textContent=shapes.length+' / '+MAX_SHAPES+' SHAPES · LOAD '+cx+(cx>SAFE_COMPLEXITY?' ⚠ HIGH':'');count.style.color=cx>SAFE_COMPLEXITY?'#ff9ab4':'';}
     setValue('ndcsWorkerUrl',getWorkerUrl());const pk=document.getElementById('ndcsPublishKey');if(pk&&document.activeElement!==pk&&!pk.value)pk.value=getPublishKey();
+    renderPublishManager();
   }
   function setValue(id,v){const e=document.getElementById(id);if(e&&document.activeElement!==e)e.value=v;}
   function setChecked(id,v){const e=document.getElementById(id);if(e)e.checked=!!v;}
@@ -9828,6 +9929,7 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
 .ndcs-side select,.ndcs-side input,.ndcs-side textarea{background:#080612;border:1px solid rgba(0,229,255,.4);border-radius:8px;color:#fff;padding:7px;font-family:inherit}.ndcs-side select{max-width:100%}.ndcs-side input[type=color]{width:48px;height:34px;padding:3px}.ndcs-side input[type=number]{width:68px}.ndcs-side textarea{width:100%;height:48px;resize:vertical;font-family:monospace;font-size:10px}
 .ndcs-mini,.ndcs-top button{font-family:'Press Start 2P';font-size:8px;padding:8px 9px;margin:0;border-radius:8px;box-shadow:none;background:#21103b;color:#fff;border:1px solid rgba(255,255,255,.18)}.ndcs-mini.sel,.ndcs-top button.sel{border-color:#00e5ff;background:#053748;color:#9fe8ff;box-shadow:0 0 12px rgba(0,229,255,.3)}.ndcs-mini.danger{border-color:#ff4f78;color:#ffb0c3}.ndcs-mini.gold{border-color:#ffd23f;color:#ffe89a}
 .ndcs-grid6{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.ndcs-grid6 button{width:100%}.ndcs-object{display:flex;width:100%;justify-content:space-between;gap:7px;align-items:center;margin:4px 0;padding:7px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.11);background:rgba(255,255,255,.04);color:#fff;text-align:left;box-shadow:none}.ndcs-object b{font-size:10px}.ndcs-object span{font-size:8px;color:#a99bc8}.ndcs-object.sel{border-color:#ffd23f;background:rgba(255,210,63,.10)}#ndcsObjects{max-height:170px;overflow:auto}.ndcs-empty{color:#8e82aa;font-size:11px;padding:12px;text-align:center}.ndcs-check{display:inline-flex;gap:5px;align-items:center;font-size:11px;color:#d9cfee}.ndcs-read{font-size:10px;color:#9fe8ff;line-height:1.4;word-break:break-word}.ndcs-status{min-height:34px;font-size:11px;color:#ffe89a;line-height:1.35;padding:7px;border-radius:8px;background:rgba(255,210,63,.055)}
+.ndcs-publish-list{max-height:230px;overflow:auto;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:3px}.ndcs-publish-row{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;margin:2px 0;padding:7px 8px;border-radius:6px;border:1px solid transparent;background:rgba(255,255,255,.035);color:#ddd;text-align:left;box-shadow:none;font-family:'Chakra Petch';font-size:10px}.ndcs-publish-row b{font-family:'Press Start 2P';font-size:7px;color:#9fb6c9}.ndcs-publish-row.current{border-color:rgba(255,210,63,.45)}.ndcs-publish-row.live b{color:#5effc8}.ndcs-publish-row.changed b{color:#ffd23f}.ndcs-publish-row.publishing b{color:#00e5ff}.ndcs-publish-row.failed b{color:#ff6f91}.ndcs-publish-row.checking b{color:#b98cff}
 #ndcsPixel{position:fixed;inset:0;z-index:60;display:none;place-items:center;background:rgba(3,2,10,.88);backdrop-filter:blur(5px);padding:12px}#ndcsPixel.show{display:grid}.ndv-card{width:min(940px,96vw);max-height:96vh;overflow:auto;background:#090717;border:1px solid rgba(155,107,255,.65);border-radius:16px;padding:14px;color:#fff}.ndv-layout{display:grid;grid-template-columns:minmax(320px,520px) 1fr;gap:14px}.ndv-card canvas{width:min(520px,88vw);height:auto;aspect-ratio:1;border:2px solid rgba(0,229,255,.45);border-radius:10px;background:#050511;touch-action:none}.ndv-card h2{font-family:'Press Start 2P';font-size:15px;color:#cdb8ff;line-height:1.4}.ndv-models{max-height:180px;overflow:auto}.ndv-chip{display:block;width:100%;margin:5px 0;padding:8px;border:1px solid rgba(255,255,255,.14);border-radius:8px;background:#151028;color:#fff;text-align:left}.ndv-chip.sel{border-color:#00e5ff;color:#9fe8ff}
 @media(max-width:850px){.ndcs-side{width:min(390px,94vw);bottom:8px;top:auto;max-height:48vh}.ndcs-top{left:6px;right:6px;top:6px;transform:none;max-width:none}.ndcs-help{display:none}.ndv-layout{grid-template-columns:1fr}.ndv-card canvas{max-width:100%}}
 `;
@@ -9842,8 +9944,11 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
 <div id="ndcsSelected" class="ndcs-sec" style="display:none"><div class="ndcs-label">SELECTED SHAPE</div><div class="ndcs-row"><select id="ndcsSelType" style="flex:1">${TYPES.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('')}</select><input id="ndcsSelColor" type="color"></div><div class="ndcs-row"><label class="ndcs-check"><input id="ndcsSelSolid" type="checkbox"> SOLID</label><label class="ndcs-check"><input id="ndcsSelAttach" type="checkbox"> ATTACH TO ROAD</label></div>
 <div id="ndcsPosRead" class="ndcs-read"></div><div class="ndcs-label" style="margin-top:8px">MOVE ALONG THE COURSE</div><div class="ndcs-grid6"><button class="ndcs-mini" data-move="forward" data-amt="60">FORWARD</button><button class="ndcs-mini" data-move="up" data-amt="40">UP</button><button class="ndcs-mini" data-move="side" data-amt="60">LEFT</button><button class="ndcs-mini" data-move="forward" data-amt="-60">BACK</button><button class="ndcs-mini" data-move="up" data-amt="-40">DOWN</button><button class="ndcs-mini" data-move="side" data-amt="-60">RIGHT</button></div>
 <div class="ndcs-label" style="margin-top:8px">SIZE X / Y / Z</div><div class="ndcs-row"><input id="ndcsSX" type="number" min="0.08" max="20" step="0.1"><input id="ndcsSY" type="number" min="0.08" max="20" step="0.1"><input id="ndcsSZ" type="number" min="0.08" max="20" step="0.1"></div>
-<div class="ndcs-label">ROTATION X / Y / Z</div><div class="ndcs-row"><input id="ndcsRX" type="number" step="15"><input id="ndcsRY" type="number" step="15"><input id="ndcsRZ" type="number" step="15"></div><div class="ndcs-grid6"><button class="ndcs-mini" data-rot="rx" data-amt="15">X +15°</button><button class="ndcs-mini" data-rot="ry" data-amt="15">Y +15°</button><button class="ndcs-mini" data-rot="rz" data-amt="15">Z +15°</button><button class="ndcs-mini" data-flip="flipX">FLIP X</button><button class="ndcs-mini" data-flip="flipY">FLIP Y</button><button class="ndcs-mini" data-flip="flipZ">FLIP Z</button></div><div class="ndcs-row"><button class="ndcs-mini" id="ndcsDuplicate">DUPLICATE</button><button class="ndcs-mini" id="ndcsMirror">MIRROR SIDE</button><button class="ndcs-mini danger" id="ndcsDelete">DELETE</button></div></div>
+<div class="ndcs-label">ROTATION X / Y / Z</div><div class="ndcs-row"><input id="ndcsRX" type="number" step="15"><input id="ndcsRY" type="number" step="15"><input id="ndcsRZ" type="number" step="15"></div><div class="ndcs-grid6"><button class="ndcs-mini" data-rot="rx" data-amt="15">X +15°</button><button class="ndcs-mini" data-rot="ry" data-amt="15">Y +15°</button><button class="ndcs-mini" data-rot="rz" data-amt="15">Z +15°</button><button class="ndcs-mini" data-flip="flipX">FLIP X</button><button class="ndcs-mini" data-flip="flipY">FLIP Y</button><button class="ndcs-mini" data-flip="flipZ">FLIP Z</button></div><div class="ndcs-row"><button class="ndcs-mini" id="ndcsDuplicate">DUPLICATE</button><button class="ndcs-mini" id="ndcsMirror">MIRROR SIDE</button><button class="ndcs-mini danger" id="ndcsDelete">DELETE</button></div>
+<div class="ndcs-label" style="margin-top:9px">WEATHER APPEARANCE</div><div class="ndcs-row"><label class="ndcs-check"><input id="ndcsWeatherReact" type="checkbox"> REACT TO RAIN / SNOW / COLD</label></div><div class="ndcs-row"><select id="ndcsWeatherPreview" style="flex:1"><option value="game">CURRENT GAME WEATHER</option><option value="clear">PREVIEW CLEAR</option><option value="rain">PREVIEW RAIN / WET</option><option value="snow">PREVIEW SNOW / FROST</option><option value="cold">PREVIEW DEEP COLD</option></select></div><div class="ndcs-read">Rain and storms make the material darker, smoother, and reflective. Snow, Cold, Freezing, and Deep Freeze add an icy frost look.</div>
+<div class="ndcs-label" style="margin-top:9px">SCENERY BEHAVIOR</div><div class="ndcs-row"><select id="ndcsBehavior" style="flex:1">${BEHAVIORS.map(x=>'<option value="'+x[0]+'">'+x[1]+'</option>').join('')}</select><label class="ndcs-check"><input id="ndcsBehaviorGame" type="checkbox"> RUN IN GAME</label></div><div class="ndcs-row"><label class="ndcs-check">SPEED <input id="ndcsBehaviorSpeed" type="number" min="0.15" max="4" step="0.15"></label><label class="ndcs-check">AMOUNT <input id="ndcsBehaviorAmount" type="number" min="0.1" max="3" step="0.1"></label></div><div class="ndcs-read">The Studio always previews the chosen behavior. It only appears during races when RUN IN GAME is checked. Moving behaviors become decoration in-game so collision stays fair.</div></div>
 <div class="ndcs-sec"><div class="ndcs-label">SAVE / UPDATE THE LIVE GAME</div><div class="ndcs-row"><button class="ndcs-mini" id="ndcsSaveDraft">SAVE DRAFT</button><button class="ndcs-mini gold" id="ndcsPublish">PUBLISH WITH GITHUB ACTIONS</button><button class="ndcs-mini danger" id="ndcsRestore">RESTORE ORIGINAL</button></div><button class="ndcs-mini" id="ndcsRefreshOnline" style="width:100%;margin-top:5px">↻ REFRESH FROM ONLINE GAME CODE</button><div class="ndcs-read" style="margin-top:6px">Publish now works like the Music Studio: it copies the scenery code and opens the correct GitHub Action. Paste it into SCENERY CODE and run the workflow. After its green check, every player loads scenery-data.json automatically.</div><div class="ndcs-row"><select id="ndcsCopyCourse" style="flex:1"></select><button class="ndcs-mini" id="ndcsCopy">COPY DRAFT</button></div><button class="ndcs-mini" id="ndcsAll">APPLY DRAFT TO ALL COURSES</button></div>
+<div class="ndcs-sec"><div class="ndcs-label">PUBLISH MANAGER</div><div id="ndcsPublishSummary" class="ndcs-read">CHECKING LIVE SCENERY…</div><div class="ndcs-row"><button class="ndcs-mini" id="ndcsPublishRefresh">VERIFY LIVE</button><button class="ndcs-mini gold" id="ndcsPublishNext">PUBLISH NEXT CHANGED</button></div><div id="ndcsPublishList" class="ndcs-publish-list"></div><div class="ndcs-read" style="margin-top:5px">Click a course to open it. PUBLISHING means its code was prepared and is waiting for GitHub Actions; VERIFY LIVE changes it to LIVE after scenery-data.json updates.</div></div>
 <div class="ndcs-sec"><div class="ndcs-label">GITHUB ACTIONS CODE / BACKUP</div><textarea id="ndcsCode" placeholder="Your GitHub Actions scenery code will appear here"></textarea><div class="ndcs-row"><button class="ndcs-mini" id="ndcsExport">COPY CODE</button><button class="ndcs-mini" id="ndcsImport">IMPORT</button></div></div><div id="ndcsStatus" class="ndcs-status"></div></div>
 <div class="ndcs-help">LEFT CLICK: place or drag · RIGHT CLICK / ALT-DRAG: orbit · MOUSE WHEEL: zoom · “Attach to road” keeps the object aligned when the course changes.</div>`;document.body.appendChild(root);statusEl=root.querySelector('#ndcsStatus');
     pixelRoot=document.createElement('div');pixelRoot.id='ndcsPixel';pixelRoot.innerHTML=`<div class="ndv-card"><h2>3D PIXEL / VOXEL SHAPE EDITOR</h2><div style="color:#cdbce6;font-size:12px;margin:5px 0 12px">Each square becomes a small 3D cube. Draw one horizontal layer at a time, then stack the layers.</div><div class="ndv-layout"><div><canvas id="ndvCanvas" width="520" height="520"></canvas></div><div><div class="ndcs-label">GRID SIZE</div><select id="ndvSize"><option>8</option><option selected>12</option><option>16</option><option>20</option></select><div class="ndcs-label" style="margin-top:10px">HEIGHT LAYER: <span id="ndvLayerRead">1 / 12</span></div><input id="ndvLayer" type="range" min="0" max="11" value="0" style="width:100%"><div class="ndcs-row"><button class="ndcs-mini sel" id="ndvDraw">DRAW</button><button class="ndcs-mini" id="ndvErase">ERASE</button><input id="ndvColor" type="color" value="#00e5ff"></div><div class="ndcs-row"><button class="ndcs-mini" id="ndvFill">FILL LAYER</button><button class="ndcs-mini" id="ndvClearLayer">CLEAR LAYER</button><button class="ndcs-mini danger" id="ndvClearAll">CLEAR ALL</button></div><div class="ndcs-row"><button class="ndcs-mini" id="ndvMirrorX">MIRROR X</button><button class="ndcs-mini" id="ndvMirrorZ">MIRROR Z</button><button class="ndcs-mini" id="ndvRotate">ROTATE 90°</button></div><div class="ndcs-label" style="margin-top:10px">MODEL NAME</div><input id="ndvName" maxlength="22" placeholder="PIXEL BUILDING" style="width:100%"><div class="ndcs-row"><button class="ndcs-mini gold" id="ndvSave">SAVE MODEL</button><button class="ndcs-mini" id="ndvUse">USE / PLACE MODEL</button><button class="ndcs-mini" id="ndvClose">CLOSE</button></div><div class="ndcs-label">SAVED MODELS</div><div id="ndvModels" class="ndv-models"></div><div id="ndvStatus" class="ndcs-status"></div></div></div></div>`;document.body.appendChild(pixelRoot);
@@ -9898,8 +10003,14 @@ window.NDGalleryList=ndGalleryList; window.NDGalleryGet=ndGalleryGet; window.NDG
     ['ndcsRX','ndcsRY','ndcsRZ'].forEach((id,i)=>document.getElementById(id).onchange=e=>{const s=selected();if(!s)return;pushHistory();s[['rx','ry','rz'][i]]=rad(Number(e.target.value)||0);rebuildPreview('transform');renderPanel();});
     document.getElementById('ndcsSelType').onchange=e=>{const s=selected();if(!s)return;pushHistory();s.type=e.target.value;if(s.type==='voxel'&&!s.modelData){const models=loadJSON(KEY_MODELS,{}),m=models[currentVoxelModel]||Object.values(models)[0];if(m){s.modelName=m.name||'';s.modelData=copy(m);}}rebuildPreview('selected');renderPanel();};
     document.getElementById('ndcsSelColor').onpointerdown=()=>{if(selected())pushHistory();};document.getElementById('ndcsSelColor').oninput=e=>{const s=selected();if(!s)return;s.color=e.target.value;rebuildPreview('selected');};
-    document.getElementById('ndcsSelSolid').onchange=e=>{const s=selected();if(!s)return;pushHistory();s.solid=e.target.checked;markBusy();renderPanel();};document.getElementById('ndcsSelAttach').onchange=e=>{const s=selected();if(!s)return;pushHistory();toggleAttach(s,e.target.checked);rebuildPreview('transform');renderPanel();};
+    document.getElementById('ndcsSelSolid').onchange=e=>{const s=selected();if(!s)return;pushHistory();s.solid=e.target.checked;if(s.solid&&s.behaviorGame&&['spin','bob','sway'].includes(s.behavior)){s.behaviorGame=false;setStatus('RUN IN GAME was turned off because moving solid collision would not be fair.');}rebuildPreview('selected');renderPanel();};document.getElementById('ndcsSelAttach').onchange=e=>{const s=selected();if(!s)return;pushHistory();toggleAttach(s,e.target.checked);rebuildPreview('transform');renderPanel();};
+    document.getElementById('ndcsWeatherReact').onchange=e=>{const s=selected();if(!s)return;pushHistory();s.weatherReact=e.target.checked;applyShapeAppearance(s,meshById.get(s.id));renderPanel();};
+    document.getElementById('ndcsWeatherPreview').onchange=e=>{weatherPreview=e.target.value||'game';refreshAllAppearances();markBusy(800);renderPanel();};
+    document.getElementById('ndcsBehavior').onchange=e=>{const s=selected();if(!s)return;pushHistory();s.behavior=BEHAVIOR_LABEL[e.target.value]?e.target.value:'none';if(s.behavior==='none')s.behaviorGame=false;if(s.solid&&s.behaviorGame&&['spin','bob','sway'].includes(s.behavior)){s.solid=false;setStatus('This moving behavior is now decorative so its race collision stays fair.');}rebuildPreview('selected');renderPanel();};
+    document.getElementById('ndcsBehaviorGame').onchange=e=>{const s=selected();if(!s)return;pushHistory();s.behaviorGame=e.target.checked&&s.behavior!=='none';if(s.behaviorGame&&s.solid&&['spin','bob','sway'].includes(s.behavior)){s.solid=false;setStatus('Moving scenery was changed to decoration for fair collision during races.');}rebuildPreview('selected');renderPanel();};
+    ['ndcsBehaviorSpeed','ndcsBehaviorAmount'].forEach((id,i)=>document.getElementById(id).onchange=e=>{const s=selected();if(!s)return;pushHistory();s[i?'behaviorAmount':'behaviorSpeed']=clamp(Number(e.target.value)||1,i?0.1:0.15,i?3:4);applyShapeMotion(s,meshById.get(s.id));applyShapeAppearance(s,meshById.get(s.id));markBusy(800);renderPanel();});
     document.getElementById('ndcsSaveDraft').onclick=()=>saveDraft();document.getElementById('ndcsPublish').onclick=()=>publishCurrent().catch(()=>{});document.getElementById('ndcsRestore').onclick=restoreOriginal;document.getElementById('ndcsRefreshOnline').onclick=refreshOnlineScenery;document.getElementById('ndcsCopy').onclick=copyToCourse;document.getElementById('ndcsAll').onclick=applyDraftAll;document.getElementById('ndcsExport').onclick=exportCode;document.getElementById('ndcsImport').onclick=importCode;
+    document.getElementById('ndcsPublishRefresh').onclick=refreshOnlineScenery;document.getElementById('ndcsPublishNext').onclick=()=>publishNextChanged().catch(()=>{});
     document.getElementById('ndcsPixelOpen').onclick=()=>openPixelEditor();
     renderer.domElement.addEventListener('pointerdown',onPointerDown);renderer.domElement.addEventListener('pointermove',onPointerMove);renderer.domElement.addEventListener('pointerup',onPointerUp);renderer.domElement.addEventListener('pointercancel',onPointerUp);renderer.domElement.addEventListener('wheel',onWheel,{passive:false});renderer.domElement.addEventListener('contextmenu',e=>{if(active)e.preventDefault();});
     addEventListener('keydown',e=>{if(!active||pixelRoot.classList.contains('show')||isTypingTarget(e.target)||isTypingTarget(document.activeElement))return;if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();deleteSelected();}else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='z'){e.preventDefault();e.shiftKey?redo():undo();}else if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='y'){e.preventDefault();redo();}else if(e.key==='Escape')exitStudio();});
