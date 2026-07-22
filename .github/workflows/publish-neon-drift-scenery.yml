@@ -23,13 +23,14 @@ jobs:
       - name: Open repository files
         uses: actions/checkout@v5
 
-      - name: Decode and update scenery-data.json
+      - name: Decode, verify, and update scenery-data.json
         env:
           SCENERY_CODE: ${{ inputs.scenery_code }}
         run: |
           node <<'NODE'
           const fs = require('fs');
           const zlib = require('zlib');
+          const crypto = require('crypto');
 
           const code = String(process.env.SCENERY_CODE || '').trim();
           if (!/^NDCS[123]/.test(code)) {
@@ -52,14 +53,63 @@ jobs:
             throw new Error('The scenery code is missing its course or shapes.');
           }
 
-          const models = incoming.models && typeof incoming.models === 'object'
+          // Never publish a newer scenery object to an older game. Older builds
+          // used to turn unknown types into cubes, which badly distorted courses.
+          if (!fs.existsSync('index.html')) {
+            throw new Error('index.html is missing from the repository.');
+          }
+          const indexText = fs.readFileSync('index.html', 'utf8');
+          const typeBlock = indexText.match(/const TYPES\s*=\s*\[([\s\S]*?)\];\s*const TYPE_LABEL/);
+          if (!typeBlock) {
+            throw new Error('Could not verify the Scenery Studio object list in index.html.');
+          }
+          const supportedTypes = new Set(
+            [...typeBlock[1].matchAll(/\[\s*['"]([a-z0-9_-]+)['"]\s*,/gi)].map(match => match[1])
+          );
+          const unknownTypes = [...new Set(
+            incoming.shapes
+              .map(shape => String(shape && shape.type || 'missing'))
+              .filter(type => !supportedTypes.has(type))
+          )];
+          if (unknownTypes.length) {
+            throw new Error(
+              'This scenery uses newer objects that the repository index.html does not support: ' +
+              unknownTypes.join(', ') +
+              '. Upload the newest Neon Drift index.html first, then run this workflow again.'
+            );
+          }
+
+          const incomingModels = incoming.models && typeof incoming.models === 'object'
             ? incoming.models
             : {};
+          const packedModels = {};
+          const clean = value => String(value || 'PIXEL')
+            .replace(/[^a-z0-9_-]/gi, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '')
+            .slice(0, 32) || 'PIXEL';
+          const courseKey = clean(incoming.course).toLowerCase();
 
-          const shapes = incoming.shapes.map((source) => {
+          const shapes = incoming.shapes.map((source, index) => {
+            if (!source || typeof source !== 'object' || Array.isArray(source)) {
+              throw new Error(`Scenery object ${index + 1} is invalid.`);
+            }
             const shape = { ...source };
-            if (shape.modelKey && !shape.modelData && models[shape.modelKey]) {
-              shape.modelData = models[shape.modelKey];
+            if (shape.type === 'voxel') {
+              const model = shape.modelData ||
+                (shape.modelKey ? incomingModels[shape.modelKey] : null);
+              if (shape.modelKey && !model) {
+                throw new Error(`Custom pixel object ${shape.id || index + 1} is missing its model data.`);
+              }
+              if (model) {
+                const modelText = JSON.stringify(model);
+                const hash = crypto.createHash('sha256').update(modelText).digest('hex').slice(0, 12);
+                const base = clean(shape.modelName || model.name || 'PIXEL').toLowerCase();
+                const sharedKey = `${courseKey}-${base}-${hash}`;
+                packedModels[sharedKey] = model;
+                shape.modelName = sharedKey;
+                delete shape.modelData;
+              }
             }
             delete shape.modelKey;
             return shape;
@@ -88,17 +138,45 @@ jobs:
             file.catalog.models = {};
           }
 
+          // Remember the old shared models for this course so unused ones can be removed.
+          const oldScene = Array.isArray(file.catalog.scenes[incoming.course])
+            ? file.catalog.scenes[incoming.course]
+            : [];
+          const oldModelKeys = new Set(
+            oldScene
+              .filter(shape => shape && shape.type === 'voxel' && !shape.modelData)
+              .map(shape => shape.modelName)
+              .filter(Boolean)
+          );
+
           file.v = 3;
           file.catalog.v = 2;
           file.updatedAt = new Date().toISOString();
           file.catalog.scenes[incoming.course] = shapes;
+          Object.assign(file.catalog.models, packedModels);
+
+          const usedModelKeys = new Set();
+          Object.values(file.catalog.scenes).forEach(scene => {
+            if (!Array.isArray(scene)) return;
+            scene.forEach(shape => {
+              if (shape && shape.type === 'voxel' && !shape.modelData && shape.modelName) {
+                usedModelKeys.add(shape.modelName);
+              }
+            });
+          });
+          oldModelKeys.forEach(key => {
+            if (!usedModelKeys.has(key)) delete file.catalog.models[key];
+          });
 
           fs.writeFileSync(
             'scenery-data.json',
             JSON.stringify(file, null, 2) + '\n'
           );
 
-          console.log(`Prepared ${shapes.length} scenery objects for ${incoming.course}.`);
+          console.log(
+            `Prepared ${shapes.length} scenery objects and ` +
+            `${Object.keys(packedModels).length} shared pixel models for ${incoming.course}.`
+          );
           NODE
 
       - name: Save scenery to the repository
