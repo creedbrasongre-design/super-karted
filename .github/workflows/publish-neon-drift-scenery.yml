@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       scenery_code:
-        description: "Paste the compressed NDCS3 scenery code copied from Neon Drift"
+        description: "Paste NDCS3 course scenery code OR Battle Studio JSON"
         required: true
         type: string
 
@@ -23,171 +23,574 @@ jobs:
       - name: Open repository files
         uses: actions/checkout@v5
 
-      - name: Decode, verify, and update scenery-data.json
+      - name: Decode and publish Neon Drift scenery
         env:
           SCENERY_CODE: ${{ inputs.scenery_code }}
+
         run: |
           node <<'NODE'
           const fs = require('fs');
           const zlib = require('zlib');
           const crypto = require('crypto');
 
-          const code = String(process.env.SCENERY_CODE || '').trim();
-          if (!/^NDCS[123]/.test(code)) {
-            throw new Error('The pasted value is not a Neon Drift NDCS scenery code.');
+          const rawInput = String(process.env.SCENERY_CODE || '').trim();
+
+          if (!rawInput) {
+            throw new Error('No scenery data was pasted.');
           }
 
-          let jsonText;
-          if (code.startsWith('NDCS3')) {
-            const zipped = Buffer.from(code.slice(5).replace(/\s+/g, ''), 'base64');
-            jsonText = zlib.gunzipSync(zipped).toString('utf8');
-          } else {
-            jsonText = Buffer.from(
-              code.replace(/^NDCS[12]/, '').replace(/\s+/g, ''),
+          // ---------------------------------------------------------
+          // DECODE INPUT
+          // ---------------------------------------------------------
+
+          let incoming;
+          let inputType = '';
+
+          if (/^NDCS[123]/.test(rawInput)) {
+            inputType = 'course';
+
+            let jsonText;
+
+            if (rawInput.startsWith('NDCS3')) {
+              const zipped = Buffer.from(
+                rawInput.slice(5).replace(/\s+/g, ''),
+                'base64'
+              );
+
+              jsonText = zlib.gunzipSync(zipped).toString('utf8');
+
+            } else {
+              jsonText = Buffer.from(
+                rawInput
+                  .replace(/^NDCS[12]/, '')
+                  .replace(/\s+/g, ''),
+                'base64'
+              ).toString('utf8');
+            }
+
+            incoming = JSON.parse(jsonText);
+
+          } else if (rawInput.startsWith('NDBS1')) {
+            // Future compressed Battle Studio code support.
+            inputType = 'battle';
+
+            const zipped = Buffer.from(
+              rawInput.slice(5).replace(/\s+/g, ''),
               'base64'
-            ).toString('utf8');
-          }
+            );
 
-          const incoming = JSON.parse(jsonText);
-          if (!incoming || typeof incoming.course !== 'string' || !Array.isArray(incoming.shapes)) {
-            throw new Error('The scenery code is missing its course or shapes.');
-          }
+            const jsonText = zlib.gunzipSync(zipped).toString('utf8');
 
-          // Never publish a newer scenery object to an older game. Older builds
-          // used to turn unknown types into cubes, which badly distorted courses.
-          if (!fs.existsSync('index.html')) {
-            throw new Error('index.html is missing from the repository.');
-          }
-          const indexText = fs.readFileSync('index.html', 'utf8');
-          const typeBlock = indexText.match(/const TYPES\s*=\s*\[([\s\S]*?)\];\s*const TYPE_LABEL/);
-          if (!typeBlock) {
-            throw new Error('Could not verify the Scenery Studio object list in index.html.');
-          }
-          const supportedTypes = new Set(
-            [...typeBlock[1].matchAll(/\[\s*['"]([a-z0-9_-]+)['"]\s*,/gi)].map(match => match[1])
-          );
-          const unknownTypes = [...new Set(
-            incoming.shapes
-              .map(shape => String(shape && shape.type || 'missing'))
-              .filter(type => !supportedTypes.has(type))
-          )];
-          if (unknownTypes.length) {
+            incoming = JSON.parse(jsonText);
+
+          } else if (rawInput.startsWith('{')) {
+            incoming = JSON.parse(rawInput);
+
+            if (
+              incoming &&
+              incoming.format === 'NEON_DRIFT_BATTLE_SCENERY'
+            ) {
+              inputType = 'battle';
+            } else if (
+              incoming &&
+              typeof incoming.course === 'string'
+            ) {
+              inputType = 'course';
+            }
+
+          } else {
             throw new Error(
-              'This scenery uses newer objects that the repository index.html does not support: ' +
-              unknownTypes.join(', ') +
-              '. Upload the newest Neon Drift index.html first, then run this workflow again.'
+              'The pasted value is not a recognized Neon Drift scenery format.'
             );
           }
 
-          const incomingModels = incoming.models && typeof incoming.models === 'object'
-            ? incoming.models
-            : {};
-          const packedModels = {};
-          const clean = value => String(value || 'PIXEL')
-            .replace(/[^a-z0-9_-]/gi, '-')
-            .replace(/-+/g, '-')
-            .replace(/^-|-$/g, '')
-            .slice(0, 32) || 'PIXEL';
-          const courseKey = clean(incoming.course).toLowerCase();
+          if (!incoming || typeof incoming !== 'object') {
+            throw new Error('The scenery data could not be decoded.');
+          }
 
-          const shapes = incoming.shapes.map((source, index) => {
-            if (!source || typeof source !== 'object' || Array.isArray(source)) {
-              throw new Error(`Scenery object ${index + 1} is invalid.`);
+          // ---------------------------------------------------------
+          // DETECT FORMAT
+          // ---------------------------------------------------------
+
+          if (
+            incoming.format === 'NEON_DRIFT_BATTLE_SCENERY' &&
+            typeof incoming.arena === 'string' &&
+            Array.isArray(incoming.shapes)
+          ) {
+            inputType = 'battle';
+          }
+
+          if (
+            typeof incoming.course === 'string' &&
+            Array.isArray(incoming.shapes)
+          ) {
+            inputType = 'course';
+          }
+
+          if (!inputType) {
+            throw new Error(
+              'Could not determine whether this is course scenery or battle scenery.'
+            );
+          }
+
+          // =========================================================
+          // BATTLE SCENERY
+          // =========================================================
+
+          if (inputType === 'battle') {
+
+            if (incoming.format !== 'NEON_DRIFT_BATTLE_SCENERY') {
+              throw new Error(
+                'The Battle Studio data has an invalid format identifier.'
+              );
             }
-            const shape = { ...source };
-            if (shape.type === 'voxel') {
-              const model = shape.modelData ||
-                (shape.modelKey ? incomingModels[shape.modelKey] : null);
-              if (shape.modelKey && !model) {
-                throw new Error(`Custom pixel object ${shape.id || index + 1} is missing its model data.`);
+
+            if (
+              typeof incoming.arena !== 'string' ||
+              !incoming.arena.trim()
+            ) {
+              throw new Error(
+                'The Battle Studio data is missing its arena name.'
+              );
+            }
+
+            if (!Array.isArray(incoming.shapes)) {
+              throw new Error(
+                'The Battle Studio data is missing its shapes.'
+              );
+            }
+
+            const arenaName = incoming.arena.trim();
+
+            const shapes = incoming.shapes.map((source, index) => {
+              if (
+                !source ||
+                typeof source !== 'object' ||
+                Array.isArray(source)
+              ) {
+                throw new Error(
+                  `Battle scenery object ${index + 1} is invalid.`
+                );
               }
-              if (model) {
-                const modelText = JSON.stringify(model);
-                const hash = crypto.createHash('sha256').update(modelText).digest('hex').slice(0, 12);
-                const base = clean(shape.modelName || model.name || 'PIXEL').toLowerCase();
-                const sharedKey = `${courseKey}-${base}-${hash}`;
-                packedModels[sharedKey] = model;
-                shape.modelName = sharedKey;
-                delete shape.modelData;
+
+              return { ...source };
+            });
+
+            let file = {
+              v: 1,
+              updatedAt: null,
+              arenas: {}
+            };
+
+            if (fs.existsSync('battle-scenery-data.json')) {
+              try {
+                const previous = JSON.parse(
+                  fs.readFileSync(
+                    'battle-scenery-data.json',
+                    'utf8'
+                  )
+                );
+
+                if (previous && typeof previous === 'object') {
+                  file = previous;
+                }
+
+              } catch (error) {
+                console.log(
+                  'The old battle scenery file could not be read. A new one will be created.'
+                );
               }
             }
-            delete shape.modelKey;
-            return shape;
-          });
+
+            if (!file || typeof file !== 'object') {
+              file = {};
+            }
+
+            if (
+              !file.arenas ||
+              typeof file.arenas !== 'object' ||
+              Array.isArray(file.arenas)
+            ) {
+              file.arenas = {};
+            }
+
+            file.v = 1;
+            file.updatedAt = new Date().toISOString();
+            file.arenas[arenaName] = shapes;
+
+            fs.writeFileSync(
+              'battle-scenery-data.json',
+              JSON.stringify(file, null, 2) + '\n'
+            );
+
+            console.log(
+              `Prepared ${shapes.length} Battle Studio objects for ${arenaName}.`
+            );
+
+            console.log(
+              'Updated battle-scenery-data.json'
+            );
+
+            process.exit(0);
+          }
+
+          // =========================================================
+          // RACING / COURSE SCENERY
+          // =========================================================
+
+          if (
+            typeof incoming.course !== 'string' ||
+            !incoming.course.trim() ||
+            !Array.isArray(incoming.shapes)
+          ) {
+            throw new Error(
+              'The course scenery code is missing its course or shapes.'
+            );
+          }
+
+          const courseName = incoming.course.trim();
+
+          // ---------------------------------------------------------
+          // VERIFY AGAINST THE ACTUAL NEON DRIFT GAME
+          // ---------------------------------------------------------
+
+          const GAME_FILE = 'neon-drift.html';
+
+          if (!fs.existsSync(GAME_FILE)) {
+            throw new Error(
+              `${GAME_FILE} is missing from the repository.`
+            );
+          }
+
+          const gameText = fs.readFileSync(
+            GAME_FILE,
+            'utf8'
+          );
+
+          /*
+           * Try to find the Scenery Studio object type list.
+           *
+           * If the newest game changes the exact source layout,
+           * publishing is allowed to continue rather than failing
+           * merely because the regular expression became outdated.
+           */
+
+          const typeBlock = gameText.match(
+            /const TYPES\s*=\s*\[([\s\S]*?)\];\s*const TYPE_LABEL/
+          );
+
+          if (typeBlock) {
+
+            const supportedTypes = new Set(
+              [
+                ...typeBlock[1].matchAll(
+                  /\[\s*['"]([a-z0-9_-]+)['"]\s*,/gi
+                )
+              ].map(match => match[1])
+            );
+
+            const unknownTypes = [
+              ...new Set(
+                incoming.shapes
+                  .map(shape =>
+                    String(
+                      shape &&
+                      shape.type ||
+                      'missing'
+                    )
+                  )
+                  .filter(type =>
+                    !supportedTypes.has(type)
+                  )
+              )
+            ];
+
+            if (unknownTypes.length) {
+              throw new Error(
+                'This scenery uses objects that the current neon-drift.html does not support: ' +
+                unknownTypes.join(', ') +
+                '. Upload the newest neon-drift.html first, then run this workflow again.'
+              );
+            }
+
+          } else {
+            console.log(
+              'The Scenery Studio TYPES list was not found in neon-drift.html.'
+            );
+
+            console.log(
+              'The game structure may have changed, so object-list verification was skipped.'
+            );
+          }
+
+          // ---------------------------------------------------------
+          // HANDLE CUSTOM PIXEL / VOXEL MODELS
+          // ---------------------------------------------------------
+
+          const incomingModels =
+            incoming.models &&
+            typeof incoming.models === 'object'
+              ? incoming.models
+              : {};
+
+          const packedModels = {};
+
+          const clean = value =>
+            String(value || 'PIXEL')
+              .replace(/[^a-z0-9_-]/gi, '-')
+              .replace(/-+/g, '-')
+              .replace(/^-|-$/g, '')
+              .slice(0, 32) || 'PIXEL';
+
+          const courseKey =
+            clean(courseName).toLowerCase();
+
+          const shapes = incoming.shapes.map(
+            (source, index) => {
+
+              if (
+                !source ||
+                typeof source !== 'object' ||
+                Array.isArray(source)
+              ) {
+                throw new Error(
+                  `Scenery object ${index + 1} is invalid.`
+                );
+              }
+
+              const shape = { ...source };
+
+              if (shape.type === 'voxel') {
+
+                const model =
+                  shape.modelData ||
+                  (
+                    shape.modelKey
+                      ? incomingModels[shape.modelKey]
+                      : null
+                  );
+
+                if (
+                  shape.modelKey &&
+                  !model
+                ) {
+                  throw new Error(
+                    `Custom pixel object ${
+                      shape.id || index + 1
+                    } is missing its model data.`
+                  );
+                }
+
+                if (model) {
+
+                  const modelText =
+                    JSON.stringify(model);
+
+                  const hash =
+                    crypto
+                      .createHash('sha256')
+                      .update(modelText)
+                      .digest('hex')
+                      .slice(0, 12);
+
+                  const base =
+                    clean(
+                      shape.modelName ||
+                      model.name ||
+                      'PIXEL'
+                    ).toLowerCase();
+
+                  const sharedKey =
+                    `${courseKey}-${base}-${hash}`;
+
+                  packedModels[sharedKey] = model;
+
+                  shape.modelName = sharedKey;
+
+                  delete shape.modelData;
+                }
+              }
+
+              delete shape.modelKey;
+
+              return shape;
+            }
+          );
+
+          // ---------------------------------------------------------
+          // OPEN EXISTING SCENERY DATABASE
+          // ---------------------------------------------------------
 
           let file = {
             v: 3,
             updatedAt: null,
-            catalog: { v: 2, scenes: {}, models: {} }
+            catalog: {
+              v: 2,
+              scenes: {},
+              models: {}
+            }
           };
 
           if (fs.existsSync('scenery-data.json')) {
+
             try {
-              file = JSON.parse(fs.readFileSync('scenery-data.json', 'utf8'));
+
+              file = JSON.parse(
+                fs.readFileSync(
+                  'scenery-data.json',
+                  'utf8'
+                )
+              );
+
             } catch (error) {
-              console.log('The old scenery file could not be read, so a new one will be created.');
+
+              console.log(
+                'The old scenery file could not be read, so a new one will be created.'
+              );
             }
           }
 
-          if (!file || typeof file !== 'object') file = {};
-          if (!file.catalog || typeof file.catalog !== 'object') file.catalog = {};
-          if (!file.catalog.scenes || typeof file.catalog.scenes !== 'object') {
+          if (!file || typeof file !== 'object') {
+            file = {};
+          }
+
+          if (
+            !file.catalog ||
+            typeof file.catalog !== 'object'
+          ) {
+            file.catalog = {};
+          }
+
+          if (
+            !file.catalog.scenes ||
+            typeof file.catalog.scenes !== 'object'
+          ) {
             file.catalog.scenes = {};
           }
-          if (!file.catalog.models || typeof file.catalog.models !== 'object') {
+
+          if (
+            !file.catalog.models ||
+            typeof file.catalog.models !== 'object'
+          ) {
             file.catalog.models = {};
           }
 
-          // Remember the old shared models for this course so unused ones can be removed.
-          const oldScene = Array.isArray(file.catalog.scenes[incoming.course])
-            ? file.catalog.scenes[incoming.course]
-            : [];
+          // ---------------------------------------------------------
+          // REMEMBER OLD CUSTOM MODELS
+          // ---------------------------------------------------------
+
+          const oldScene =
+            Array.isArray(
+              file.catalog.scenes[courseName]
+            )
+              ? file.catalog.scenes[courseName]
+              : [];
+
           const oldModelKeys = new Set(
             oldScene
-              .filter(shape => shape && shape.type === 'voxel' && !shape.modelData)
+              .filter(
+                shape =>
+                  shape &&
+                  shape.type === 'voxel' &&
+                  !shape.modelData
+              )
               .map(shape => shape.modelName)
               .filter(Boolean)
           );
 
+          // ---------------------------------------------------------
+          // UPDATE COURSE
+          // ---------------------------------------------------------
+
           file.v = 3;
           file.catalog.v = 2;
-          file.updatedAt = new Date().toISOString();
-          file.catalog.scenes[incoming.course] = shapes;
-          Object.assign(file.catalog.models, packedModels);
+          file.updatedAt =
+            new Date().toISOString();
+
+          file.catalog.scenes[courseName] =
+            shapes;
+
+          Object.assign(
+            file.catalog.models,
+            packedModels
+          );
+
+          // ---------------------------------------------------------
+          // REMOVE CUSTOM MODELS NO LONGER USED
+          // ---------------------------------------------------------
 
           const usedModelKeys = new Set();
-          Object.values(file.catalog.scenes).forEach(scene => {
-            if (!Array.isArray(scene)) return;
-            scene.forEach(shape => {
-              if (shape && shape.type === 'voxel' && !shape.modelData && shape.modelName) {
-                usedModelKeys.add(shape.modelName);
+
+          Object
+            .values(file.catalog.scenes)
+            .forEach(scene => {
+
+              if (!Array.isArray(scene)) {
+                return;
               }
+
+              scene.forEach(shape => {
+
+                if (
+                  shape &&
+                  shape.type === 'voxel' &&
+                  !shape.modelData &&
+                  shape.modelName
+                ) {
+                  usedModelKeys.add(
+                    shape.modelName
+                  );
+                }
+              });
             });
-          });
+
           oldModelKeys.forEach(key => {
-            if (!usedModelKeys.has(key)) delete file.catalog.models[key];
+
+            if (!usedModelKeys.has(key)) {
+              delete file.catalog.models[key];
+            }
           });
+
+          // ---------------------------------------------------------
+          // SAVE
+          // ---------------------------------------------------------
 
           fs.writeFileSync(
             'scenery-data.json',
-            JSON.stringify(file, null, 2) + '\n'
+            JSON.stringify(
+              file,
+              null,
+              2
+            ) + '\n'
           );
 
           console.log(
             `Prepared ${shapes.length} scenery objects and ` +
-            `${Object.keys(packedModels).length} shared pixel models for ${incoming.course}.`
+            `${Object.keys(packedModels).length} shared pixel models for ${courseName}.`
           );
+
+          console.log(
+            'Updated scenery-data.json'
+          );
+
           NODE
 
       - name: Save scenery to the repository
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add scenery-data.json
+
+          if [ -f "scenery-data.json" ]; then
+            git add scenery-data.json
+          fi
+
+          if [ -f "battle-scenery-data.json" ]; then
+            git add battle-scenery-data.json
+          fi
 
           if git diff --cached --quiet; then
-            echo "The scenery file already contains these changes."
+            echo "The scenery files already contain these changes."
           else
-            git commit -m "Update Neon Drift course scenery"
+            git commit -m "Update Neon Drift scenery"
             git push
           fi
