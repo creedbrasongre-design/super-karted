@@ -1,0 +1,15 @@
+ed9f77c1ee385b6d3cd16d2a4e38a0e96eb9ce34ba55bdd6077c832fe4b28b70  ./.github/ISSUE_TEMPLATE/neon-workshop.yml
+77db16797f7a65ce022c041ef61a2d9ef85797faac8d61779efd2254d13ad0f7  ./.github/workflows/neon-workshop-ingest.yml
+8f1b6b7cf7e0f618f74c4c3d5d7bf764a9fec4959b0b1ac812c7d281d1709eec  ./.github/workflows/neon-workshop-maintenance.yml
+f9f183ea7fcbd0e3c1d446cd85189b5b8f9c4f1bd08c612038f4fe9fb92b0bfe  ./INSTALL.md
+1d15e202046532979d3e0bd0a8838e0cbb1a8ef4e548f67c96e588c242c67a13  ./README.md
+9cd8888ecedc70114d119cefa7f406870d409807e8eb346365352df06b8e90f9  ./community/README.md
+c8ea87aacc88932b89561d16a35ee02dd69303e4111e85d1a27fb9ae015d2b8f  ./community/config.json
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./community/covers/.gitkeep
+ab73a6d0d3009424d530c22350a085e75f474f114edd76af43b46c3b47aacc9e  ./community/index.json
+9ffaf0f145b34a39130642c0da0c6de6f0969ef1e048483227eb57f13d40cd89  ./neon-drift.html
+3fe649738331178973bc901812016945fc0226c3ecc124c29c1c57ae37684812  ./neon-workshop.js
+a6a9212845f0b586348052a1e2d11f9b6a35bc5f1157b03b3ea336d22404e7f0  ./scripts/neon-workshop-ingest.mjs
+e850d3281e3b272a7d514e55ce656027cffb6f3913c4ad1491d5a4aa6b5ef5fe  ./scripts/neon-workshop-lib.mjs
+a6266f20b8957701dd7d0720aa01a022be5c8b9097db0d46650f97ad1870016e  ./scripts/neon-workshop-maintenance.mjs
+26a3416097ec70480232f7a311c7f2d9e976ffa2667b3981a9f22156969ef8a4  ./scripts/neon-workshop-test.mjs
