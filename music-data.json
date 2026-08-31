@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updatedAt": "2026-08-31T18:18:16.946Z",
+  "updatedAt": "2026-08-31T18:18:42.467Z",
   "songs": {
     "course:NEON BAY": {
       "scale": [
@@ -279,7 +279,7 @@
           "kickOn": true,
           "snareOn": true,
           "hatsOn": true,
-          "transpose": 1,
+          "transpose": 0,
           "prog": [
             5,
             6,
