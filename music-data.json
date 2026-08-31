@@ -1,6 +1,6 @@
 {
   "version": 3,
-  "updatedAt": "2026-08-24T14:33:41.429Z",
+  "updatedAt": "2026-08-31T18:18:16.946Z",
   "songs": {
     "course:NEON BAY": {
       "scale": [
@@ -478,7 +478,7 @@
           "leadType": "triangle",
           "hatEvery": 2,
           "bassVol": 0,
-          "chordVol": 0.07,
+          "chordVol": 0.02,
           "leadVol": 0.12,
           "kickOn": false,
           "snareOn": false,
@@ -528,8 +528,8 @@
           "chordType": "sawtooth",
           "leadType": "sawtooth",
           "hatEvery": 2,
-          "bassVol": 0.06,
-          "chordVol": 0.13,
+          "bassVol": 0.03,
+          "chordVol": 0.05,
           "leadVol": 0.15,
           "kickOn": false,
           "snareOn": false,
@@ -579,8 +579,8 @@
           "chordType": "sawtooth",
           "leadType": "sawtooth",
           "hatEvery": 1,
-          "bassVol": 0.17,
-          "chordVol": 0.15,
+          "bassVol": 0.02,
+          "chordVol": 0.02,
           "leadVol": 0.17,
           "kickOn": false,
           "snareOn": false,
@@ -631,12 +631,12 @@
         "chordType": "sawtooth",
         "leadType": "sawtooth",
         "hatEvery": 1,
-        "bassVol": 0.24,
-        "chordVol": 0.07,
+        "bassVol": 0,
+        "chordVol": 0,
         "leadVol": 0.12,
-        "kickOn": true,
-        "snareOn": true,
-        "hatsOn": true,
+        "kickOn": false,
+        "snareOn": false,
+        "hatsOn": false,
         "transpose": 0,
         "prog": [
           1,
@@ -659,10 +659,10 @@
           0,
           2,
           1,
-          0,
-          0
+          2,
+          2
         ],
-        "bpmMult": 1.24
+        "bpmMult": 1.05
       }
     },
     "course:FROSTBYTE PASS": {
