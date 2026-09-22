@@ -422,12 +422,16 @@ function patchPersistentArmory(text){
     sword:Object.freeze({
       iron:Object.freeze({name:'IRON SWORD',damage:1.04,cost:80,loot:{stone:2,iron:1},color:0xdde5e8}),
       knight:Object.freeze({name:'KNIGHT BLADE',damage:1.08,cost:180,loot:{stone:4,iron:3},color:0xc8d9e8}),
-      ember:Object.freeze({name:'EMBER BLADE',damage:1.12,cost:320,loot:{stone:5,siege:2},color:0xff9a68})
+      ember:Object.freeze({name:'EMBER BLADE',damage:1.12,cost:320,loot:{stone:5,siege:2},color:0xff9a68}),
+      tidal:Object.freeze({name:'TIDAL SABRE',damage:1.08,range:.18,reaction:1.08,cost:255,loot:{lens:2,stone:3,spring:1},color:0x74d4ff,elementBoosts:{water:{damage:1.12,reaction:1.14},ice:{crit:.03}}}),
+      eclipse:Object.freeze({name:'ECLIPSE SABRE',damage:1.09,crit:.03,cost:335,loot:{lens:3,stone:4},color:0xcfa6ff,elementBoosts:{dusk:{damage:1.12,reaction:1.12},dawn:{damage:1.1,crit:.03}}})
     }),
     bow:Object.freeze({
       oak:Object.freeze({name:'OAK WAR BOW',damage:1.03,range:.25,cost:70,loot:{feather:2},color:0x9b6e43}),
       eagle:Object.freeze({name:'EAGLE BOW',damage:1.07,range:.55,cost:175,loot:{lens:3,feather:2},color:0x8fdcff}),
-      storm:Object.freeze({name:'STORM BOW',damage:1.1,range:.85,cost:310,loot:{lens:5,spring:2},color:0x8ec9ff})
+      storm:Object.freeze({name:'STORM BOW',damage:1.1,range:.85,cost:310,loot:{lens:5,spring:2},color:0x8ec9ff}),
+      sunshot:Object.freeze({name:'SUNSHOT BOW',damage:1.06,range:.7,crit:.03,cost:260,loot:{lens:3,feather:3},color:0xffdb79,elementBoosts:{dawn:{damage:1.12,range:.35,crit:.03},physical:{damage:1.08}}}),
+      mire:Object.freeze({name:'MIRE BOW',damage:1.05,range:.5,reaction:1.1,cost:245,loot:{feather:2,stone:2,spring:1},color:0x7fca67,elementBoosts:{plant:{damage:1.10,reaction:1.16},water:{range:.25}}})
     }),
     shield:Object.freeze({
       wood:Object.freeze({name:'WOOD SHIELD',hp:1.04,cost:65,loot:{iron:1},color:0x9a704b}),
@@ -613,7 +617,7 @@ function patchPersistentArmory(text){
     'persistent end-of-battle rewards'
   );
 
-  return patchAppliedElementMemoryRules(patchReliableAnimatedEffectsAndWeapons(patchDamageScalingAndStatusIconPrep(patchLargeAreaUnitSell(patchWeatherDamageNumberScaling(patchCustomKeyLayout(patchBiggerUnitsElementHotkeys(patchElementalCombat(patchOfflineExpandedBattleSpeed(patchFortScaleBalanceAccess(patchFortGroundLevelSafe(patchFortFinalizeAndPaint(patchFortPlacementAI(patchTrueCustomFort(patchFortUX(text)))))))))))))));
+  return patchFastHealersAndMages(patchHealersManaAndLadders(patchEdgeToEdgeHudFix(patchCompactRightElementGrid(patchVisibleElementGrid(patchDirectKeysAndElementGrid(patchWeakerFireball(patchMageRosterHudAndEffects(patchMavaEnemiesOnly(patchAppliedElementMemoryRules(patchReliableAnimatedEffectsAndWeapons(patchDamageScalingAndStatusIconPrep(patchLargeAreaUnitSell(patchWeatherDamageNumberScaling(patchCustomKeyLayout(patchBiggerUnitsElementHotkeys(patchElementalCombat(patchOfflineExpandedBattleSpeed(patchFortScaleBalanceAccess(patchFortGroundLevelSafe(patchFortFinalizeAndPaint(patchFortPlacementAI(patchTrueCustomFort(patchFortUX(text))))))))))))))))))))))));
 }
 
 
@@ -948,8 +952,8 @@ function patchTrueCustomFort(text){
 
 function patchFortPlacementAI(text){
   function once(oldValue,newValue,label){
-    if(!text.includes(oldValue))throw new Error('Could not add '+label+'.');
-    text=text.replace(oldValue,newValue);
+    if(!text.includes(oldValue)){console.warn('Kingdom Clash elements patch skipped: '+label);return false;}
+    text=text.replace(oldValue,newValue);return true;
   }
   function regexOnce(regex,replacement,label){
     const before=text;
@@ -1523,10 +1527,7 @@ function patchElementalCombat(text){
   }),ELEMENT_KEYS=Object.freeze(Object.keys(ELEMENT_DEFS)),ELEMENT_MAGIC_TYPES=Object.freeze(new Set(['swordsman','guard','lancer']));
   function normalizeElement(value){return ELEMENT_DEFS[value]?value:'physical';}
   function elementMatchMultiplier(attacker,target){
-    attacker=normalizeElement(attacker);target=normalizeElement(target);if(attacker===target)return 1;
-    const wins={water:['fire'],fire:['ice','plant'],ice:['plant'],plant:['thunder'],thunder:['water'],physical:['dusk','dawn'],metal:['physical','dusk','dawn']};
-    if((wins[attacker]||[]).includes(target))return 1.25;
-    if((wins[target]||[]).includes(attacker))return .82;
+    attacker=normalizeElement(attacker);target=normalizeElement(target);
     return 1;
   }
   `+unitKeyMarker);
@@ -1634,7 +1635,17 @@ function patchElementalCombat(text){
       else if(reaction==='BLINDED'){setElementStatus(target,'blinded',5,sourceSide,1);}
       else if(reaction==='MAVA'){createMavaPool(target,sourceSide,baseDamage);bonus=1.18;}
       else if(reaction==='BOMBED'){bonus=1.4;const radius=4.4*mapSize.scale;if(target.side&&spatial[target.side])forEachSpatialUnit(target.side,target.mesh.position,radius,unit=>{if(unit!==target&&!unit.dead)dealDamage(unit,Math.max(5,baseDamage*.62),sourceSide,'element-reaction',sourceObject,{element:'fire',skipReactions:true,noMatchup:true});});reactionBurst(target,'fire','BOMBED',1.3);}
-      reactionBurst(target,incoming,reaction,reaction==='BOMBED'?1.2:.72);return{bonus,critical};
+      else if(reaction==='STEAMED'){setElementStatus(target,'blinded',3.4,sourceSide,1);setElementStatus(target,'burned',3.2,sourceSide,Math.max(2.4,baseDamage*.08));bonus=1.12;}
+      else if(reaction==='TEMPEST'){setElementStatus(target,'electrified',4.2,sourceSide,Math.max(3,baseDamage*.12));setElementStatus(target,'frostbitten',3.2,sourceSide,1);target.stun=Math.max(target.stun||0,1.1);bonus=1.22;critical=true;}
+      else if(reaction==='SHATTERED'){setElementStatus(target,'frostbitten',3,sourceSide,1);bonus=1.34;critical=true;}
+      else if(reaction==='ECLIPSED'){setElementStatus(target,'blinded',4.6,sourceSide,1);setElementStatus(target,'cursed',6.2,sourceSide,Math.max(2.4,baseDamage*.08));bonus=1.16;}
+      else if(reaction==='SCORCHED'){setElementStatus(target,'burned',6,sourceSide,Math.max(3,baseDamage*.11));setElementStatus(target,'cursed',4.8,sourceSide,Math.max(2.2,baseDamage*.07));bonus=1.17;}
+      else if(reaction==='ROOTED'){setElementStatus(target,'poisoned',6.5,sourceSide,Math.max(2.3,baseDamage*.09));setElementStatus(target,'frostbitten',2.5,sourceSide,1);target.stun=Math.max(target.stun||0,.9);bonus=1.14;}
+      else if(reaction==='RUSTED'){setElementStatus(target,'frostbitten',3.6,sourceSide,1);bonus=1.15;}
+      else if(reaction==='OVERCHARGED'){setElementStatus(target,'electrified',5.2,sourceSide,Math.max(3.1,baseDamage*.14));setElementStatus(target,'poisoned',4.2,sourceSide,Math.max(2.1,baseDamage*.07));bonus=1.18;}
+      else if(reaction==='HALO'){setElementStatus(target,'blinded',4,sourceSide,1);bonus=1.12;critical=true;}
+      else if(reaction==='SMASHED'){bonus=1.2;const radius=3.4*mapSize.scale;if(target.side&&spatial[target.side])forEachSpatialUnit(target.side,target.mesh.position,radius,unit=>{if(unit!==target&&!unit.dead)dealDamage(unit,Math.max(4,baseDamage*.32),sourceSide,'element-reaction',sourceObject,{element:'physical',skipReactions:true,noMatchup:true});});reactionBurst(target,'physical','SMASHED',1.0);}
+      reactionBurst(target,incoming,reaction,reaction==='BOMBED'?1.2:reaction==='SMASHED'?1.0:.72);return{bonus,critical};
     }
     function resolveElementalHit(target,amount,sourceSide,damageType,sourceObject,meta=null){
       const element=elementForDamage(damageType,sourceObject,meta),targetElement=normalizeElement(target&&target.element),matchup=meta&&meta.noMatchup?1:elementMatchMultiplier(element,targetElement);let resultAmount=amount*matchup,reaction='',critical=false;
@@ -1643,7 +1654,7 @@ function patchElementalCombat(text){
         if(element==='dusk'){target._duskCombo=elapsed<(target._duskComboUntil||0)?(target._duskCombo||0)+1:1;target._duskComboUntil=elapsed+5;if(target._duskCombo>=5){reaction='CURSED';target._duskCombo=0;}}
         if(element==='dawn'){target._dawnCombo=elapsed<(target._dawnComboUntil||0)?(target._dawnCombo||0)+1:1;target._dawnComboUntil=elapsed+5;if(target._dawnCombo>=4){reaction='BLINDED';target._dawnCombo=0;}}
         const previous=target._elementMemory&&target._elementMemory.until>elapsed?target._elementMemory.element:null,pair=previous&&previous!==element?[previous,element].sort().join('+'):'';
-        const pairs={'thunder+water':'ELECTRIFIED','fire+plant':'BURNED','plant+water':'POISONED','ice+water':'FROSTBITTEN','fire+metal':'MAVA','fire+thunder':'BOMBED'};
+        const pairs={'thunder+water':'ELECTRIFIED','fire+plant':'BURNED','plant+water':'POISONED','ice+water':'FROSTBITTEN','fire+metal':'MAVA','fire+thunder':'BOMBED','fire+water':'STEAMED','ice+thunder':'TEMPEST','ice+metal':'SHATTERED','dawn+dusk':'ECLIPSED','dusk+fire':'SCORCHED','physical+plant':'ROOTED','metal+water':'RUSTED','plant+thunder':'OVERCHARGED','dawn+metal':'HALO','physical+thunder':'SMASHED'};
         if(!reaction&&pairs[pair])reaction=pairs[pair];
         target._elementMemory={element,until:elapsed+3.25};
         if(reaction){const reactionResult=applyReaction(target,reaction,element,sourceSide,sourceObject,resultAmount);resultAmount*=reactionResult.bonus;critical=critical||reactionResult.critical;}
@@ -1671,7 +1682,7 @@ function patchElementalCombat(text){
   spliceFunction('createUnit(team,type,spawnPoint=null,elementOverride=null){','updateBar',block=>{
     const marker="};if(!assignUnitBatchSlot(u))";
     if(!block.includes(marker))return block;
-    return block.replace(marker,`};u.element=normalizeElement(elementOverride||autoElementForUnit(team,type));u.elementalCaster=ELEMENT_MAGIC_TYPES.has(type);u.elementStatuses={};u.elementVisualSlot=-1;if(u.elementalCaster)u.range=Math.max(u.range,7.15);if(!assignUnitBatchSlot(u))`);
+    return block.replace(marker,`};u.element=normalizeElement(elementOverride||autoElementForUnit(team,type));const elementGear=u.armoryElementBoosts&&u.armoryElementBoosts[u.element];if(elementGear){const hpMult=elementGear.hp||1;u.damage*=elementGear.damage||1;u.hp=Math.max(1,Math.round(u.hp*hpMult));u.maxHp=Math.max(1,Math.round(u.maxHp*hpMult));u.speed*=elementGear.speed||1;u.range+=(elementGear.range||0);u.rate*=elementGear.attackRate||1;u.heal=(u.heal||0)*(elementGear.heal||1);u.splash=(u.splash||0)+(elementGear.splash||0);u.structureDamage=(u.structureDamage||1)*(elementGear.structureDamage||1);u.reactionPower=(u.reactionPower||1)*(elementGear.reaction||1);u.weaponCritAdd=(u.weaponCritAdd||0)+(elementGear.crit||0);}u.elementalCaster=ELEMENT_MAGIC_TYPES.has(type);u.elementStatuses={};u.elementVisualSlot=-1;if(u.elementalCaster)u.range=Math.max(u.range,7.15);if(!assignUnitBatchSlot(u))`);
   },'unit elemental properties');
 
   // Assign the visual slot only after the normal unit batch succeeds.
@@ -2190,16 +2201,16 @@ function patchReliableAnimatedEffectsAndWeapons(text){
       iron:Object.freeze({name:'IRON SHIELD',hp:1.09,cost:165,loot:{iron:4},color:0xaeb9c4}),
       royal:Object.freeze({name:'ROYAL SHIELD',hp:1.14,cost:300,loot:{iron:5,siege:2},color:0xffd977})
     }),
-    lance:Object.freeze({storm:Object.freeze({name:'STORM LANCE',damage:1.06,speed:1.06,charge:8,crit:.03,cost:260,loot:{spring:3,lens:2},color:0xffdf4f})}),
-    grimoire:Object.freeze({arcane:Object.freeze({name:'ARCANE GRIMOIRE',damage:1.08,range:.8,splash:.6,reaction:1.18,crit:.03,cost:300,loot:{lens:4,feather:2},color:0xa985ea})}),
-    codex:Object.freeze({healing:Object.freeze({name:'HEALING CODEX',hp:1.06,range:.8,heal:1.25,reaction:1.08,cost:260,loot:{feather:4,iron:2},color:0x72efab})}),
-    maul:Object.freeze({siege:Object.freeze({name:'SIEGE MAUL',damage:1.08,hp:1.08,structureDamage:1.25,cost:320,loot:{siege:3,iron:4},color:0xd49362})}),
-    launcher:Object.freeze({blast:Object.freeze({name:'BLAST CANNON',damage:1.10,range:.8,splash:.8,structureDamage:1.12,cost:330,loot:{siege:3,spring:3},color:0xff995c})}),
-    orb:Object.freeze({tempest:Object.freeze({name:'TEMPEST ORB',damage:1.08,hp:1.05,range:.8,reaction:1.15,cost:300,loot:{lens:4,spring:2},color:0x8fdcff})}),
-    axe:Object.freeze({titan:Object.freeze({name:'TITAN AXE',damage:1.12,hp:1.08,crit:.05,cost:340,loot:{stone:5,iron:4},color:0xe8704f})}),
-    glaive:Object.freeze({falcon:Object.freeze({name:'FALCON GLAIVE',damage:1.07,speed:1.08,crit:.04,cost:250,loot:{feather:4,stone:2},color:0xe7c36b})}),
-    focus:Object.freeze({ember:Object.freeze({name:'WYVERN EMBER CORE',damage:1.08,splash:.7,reaction:1.14,cost:360,loot:{siege:3,lens:3},color:0xff764e})}),
-    satchel:Object.freeze({bomb:Object.freeze({name:'DOOM BOMB SATCHEL',damage:1.11,splash:1.0,structureDamage:1.10,cost:290,loot:{spring:4,siege:2},color:0xffb35a})})
+    lance:Object.freeze({storm:Object.freeze({name:'STORM LANCE',damage:1.06,speed:1.06,charge:8,crit:.03,cost:260,loot:{spring:3,lens:2},color:0xffdf4f}),tide:Object.freeze({name:'TIDE LANCE',damage:1.05,range:.45,reaction:1.08,cost:285,loot:{spring:2,feather:2,lens:1},color:0x7fd7ff,elementBoosts:{water:{damage:1.12,reaction:1.14},ice:{crit:.03}}})}),
+    grimoire:Object.freeze({arcane:Object.freeze({name:'ARCANE GRIMOIRE',damage:1.08,range:.8,splash:.6,reaction:1.18,crit:.03,cost:300,loot:{lens:4,feather:2},color:0xa985ea}),solar:Object.freeze({name:'SOLAR GRIMOIRE',damage:1.06,range:.7,reaction:1.16,cost:320,loot:{lens:4,stone:2},color:0xffe08f,elementBoosts:{dawn:{damage:1.14,range:.45,reaction:1.12},fire:{damage:1.09}}})}),
+    codex:Object.freeze({healing:Object.freeze({name:'HEALING CODEX',hp:1.06,range:.8,heal:1.25,reaction:1.08,cost:260,loot:{feather:4,iron:2},color:0x72efab}),verdant:Object.freeze({name:'VERDANT CODEX',hp:1.05,range:.65,heal:1.18,cost:280,loot:{feather:3,stone:2,lens:1},color:0x8bd96a,elementBoosts:{plant:{heal:1.18,reaction:1.12},water:{range:.35}}})}),
+    maul:Object.freeze({siege:Object.freeze({name:'SIEGE MAUL',damage:1.08,hp:1.08,structureDamage:1.25,cost:320,loot:{siege:3,iron:4},color:0xd49362}),glacier:Object.freeze({name:'GLACIER MAUL',damage:1.06,hp:1.10,structureDamage:1.10,cost:340,loot:{stone:5,lens:2},color:0xb8ecff,elementBoosts:{ice:{damage:1.12,structureDamage:1.12},metal:{hp:1.08}}})}),
+    launcher:Object.freeze({blast:Object.freeze({name:'BLAST CANNON',damage:1.10,range:.8,splash:.8,structureDamage:1.12,cost:330,loot:{siege:3,spring:3},color:0xff995c}),storm:Object.freeze({name:'STORM CANNON',damage:1.07,range:.7,splash:.9,reaction:1.12,cost:350,loot:{spring:4,lens:2,siege:1},color:0x97d7ff,elementBoosts:{thunder:{damage:1.12,reaction:1.18,splash:.4},water:{range:.3}}})}),
+    orb:Object.freeze({tempest:Object.freeze({name:'TEMPEST ORB',damage:1.08,hp:1.05,range:.8,reaction:1.15,cost:300,loot:{lens:4,spring:2},color:0x8fdcff}),halo:Object.freeze({name:'HALO ORB',damage:1.05,hp:1.08,range:.7,cost:325,loot:{lens:3,feather:3,stone:1},color:0xfff0ad,elementBoosts:{dawn:{damage:1.12,reaction:1.16,crit:.03},dusk:{hp:1.08}}})}),
+    axe:Object.freeze({titan:Object.freeze({name:'TITAN AXE',damage:1.12,hp:1.08,crit:.05,cost:340,loot:{stone:5,iron:4},color:0xe8704f}),void:Object.freeze({name:'VOID AXE',damage:1.08,hp:1.06,crit:.04,cost:360,loot:{stone:4,lens:3,siege:1},color:0x9d75d9,elementBoosts:{dusk:{damage:1.14,reaction:1.15},physical:{structureDamage:1.08}}})}),
+    glaive:Object.freeze({falcon:Object.freeze({name:'FALCON GLAIVE',damage:1.07,speed:1.08,crit:.04,cost:250,loot:{feather:4,stone:2},color:0xe7c36b}),river:Object.freeze({name:'RIVER GLAIVE',damage:1.05,speed:1.10,range:.35,cost:275,loot:{feather:3,spring:1,lens:1},color:0x6fc7ff,elementBoosts:{water:{damage:1.10,speed:1.05},plant:{crit:.03}}})}),
+    focus:Object.freeze({ember:Object.freeze({name:'WYVERN EMBER CORE',damage:1.08,splash:.7,reaction:1.14,cost:360,loot:{siege:3,lens:3},color:0xff764e}),aurora:Object.freeze({name:'AURORA CORE',damage:1.06,splash:.65,reaction:1.12,cost:380,loot:{lens:4,feather:2,spring:1},color:0x9cf3ff,elementBoosts:{ice:{damage:1.12,reaction:1.12},dawn:{crit:.04,range:.35}}})}),
+    satchel:Object.freeze({bomb:Object.freeze({name:'DOOM BOMB SATCHEL',damage:1.11,splash:1.0,structureDamage:1.10,cost:290,loot:{spring:4,siege:2},color:0xffb35a}),thorn:Object.freeze({name:'THORN BOMB SATCHEL',damage:1.07,splash:.95,reaction:1.14,cost:310,loot:{spring:3,stone:2,feather:1},color:0x8acb52,elementBoosts:{plant:{damage:1.10,reaction:1.18,splash:.35},fire:{structureDamage:1.06}}})})
   });`;
   once(gearEnd,gearExpanded,'10 new Armory weapons');
 
@@ -2243,7 +2254,7 @@ function patchReliableAnimatedEffectsAndWeapons(text){
       damage*=1+weaponLevel*.018;hp*=1+weaponLevel*.008;rangeAdd+=weaponLevel*((weapon.range||0)>.01?.045:0);critAdd+=weaponLevel*.002;reactionPower*=1+weaponLevel*.008;
     }
     if(shield)hp*=(shield.hp||1)*(1+shieldLevel*.018);
-    return{unitDamage:damage,unitHp:hp,unitSpeed:speed,rangeAdd,attackRate,heal,splashAdd,structureDamage,chargeAdd,critAdd,reactionPower,weaponKind,weaponId:profile.gear.weapon||null};
+    return{unitDamage:damage,unitHp:hp,unitSpeed:speed,rangeAdd,attackRate,heal,splashAdd,structureDamage,chargeAdd,critAdd,reactionPower,weaponKind,weaponId:profile.gear.weapon||null,elementBoosts:weapon&&weapon.elementBoosts||null};
   }`,
     'expanded Armory combat stats'
   );
@@ -2261,7 +2272,7 @@ function patchReliableAnimatedEffectsAndWeapons(text){
   );
   once(
     "splash:d.splash||0,heal:d.heal||0,charge:d.charge||0,",
-    "splash:(d.splash||0)+(armoryStats.splashAdd||0),heal:(d.heal||0)*(armoryStats.heal||1),charge:(d.charge||0)+(armoryStats.chargeAdd||0),weaponCritAdd:armoryStats.critAdd||0,reactionPower:armoryStats.reactionPower||1,weaponKind:armoryStats.weaponKind||kcArmoryWeaponKind(type),",
+    "splash:(d.splash||0)+(armoryStats.splashAdd||0),heal:(d.heal||0)*(armoryStats.heal||1),charge:(d.charge||0)+(armoryStats.chargeAdd||0),weaponCritAdd:armoryStats.critAdd||0,reactionPower:armoryStats.reactionPower||1,weaponKind:armoryStats.weaponKind||kcArmoryWeaponKind(type),armoryElementBoosts:armoryStats.elementBoosts||null,",
     'Armory special unit stats'
   );
 
@@ -2280,7 +2291,7 @@ function patchReliableAnimatedEffectsAndWeapons(text){
   // More informative Armory stats panel.
   once(
     "statsBox.innerHTML='<b>PERMANENT BATTLE BONUSES</b><br>HP ×'+stats.unitHp.toFixed(2)+' · DAMAGE ×'+stats.unitDamage.toFixed(2)+' · SPEED ×'+stats.unitSpeed.toFixed(2)+(stats.rangeAdd?' · RANGE +'+stats.rangeAdd.toFixed(2):'');",
-    "statsBox.innerHTML='<b>PERMANENT BATTLE BONUSES</b><br>HP ×'+stats.unitHp.toFixed(2)+' · DAMAGE ×'+stats.unitDamage.toFixed(2)+' · SPEED ×'+stats.unitSpeed.toFixed(2)+(stats.rangeAdd?' · RANGE +'+stats.rangeAdd.toFixed(2):'')+(stats.attackRate!==1?' · ATTACK RATE ×'+stats.attackRate.toFixed(2):'')+(stats.heal!==1?' · HEAL ×'+stats.heal.toFixed(2):'')+(stats.splashAdd?' · SPLASH +'+stats.splashAdd.toFixed(2):'')+(stats.structureDamage!==1?' · STRUCTURE ×'+stats.structureDamage.toFixed(2):'')+(stats.chargeAdd?' · CHARGE +'+stats.chargeAdd.toFixed(0):'')+(stats.critAdd?' · CRIT +'+Math.round(stats.critAdd*100)+'%':'')+(stats.reactionPower!==1?' · ELEMENT ×'+stats.reactionPower.toFixed(2):'');",
+    "statsBox.innerHTML='<b>PERMANENT BATTLE BONUSES</b><br>HP ×'+stats.unitHp.toFixed(2)+' · DAMAGE ×'+stats.unitDamage.toFixed(2)+' · SPEED ×'+stats.unitSpeed.toFixed(2)+(stats.rangeAdd?' · RANGE +'+stats.rangeAdd.toFixed(2):'')+(stats.attackRate!==1?' · ATTACK RATE ×'+stats.attackRate.toFixed(2):'')+(stats.heal!==1?' · HEAL ×'+stats.heal.toFixed(2):'')+(stats.splashAdd?' · SPLASH +'+stats.splashAdd.toFixed(2):'')+(stats.structureDamage!==1?' · STRUCTURE ×'+stats.structureDamage.toFixed(2):'')+(stats.chargeAdd?' · CHARGE +'+stats.chargeAdd.toFixed(0):'')+(stats.critAdd?' · CRIT +'+Math.round(stats.critAdd*100)+'%':'')+(stats.reactionPower!==1?' · ELEMENT ×'+stats.reactionPower.toFixed(2):'')+(stats.elementBoosts?' <br><small>ATTUNED BONUS: boosts certain elements</small>':'');",
     'expanded Armory stat display'
   );
 
@@ -2366,13 +2377,1297 @@ function patchAppliedElementMemoryRules(text){
   return text;
 }
 
+
+function patchMavaEnemiesOnly(text){
+  function once(oldValue,newValue,label){
+    if(!text.includes(oldValue))throw new Error('Could not add '+label+'.');
+    text=text.replace(oldValue,newValue);
+  }
+
+  // Mava pools only affect hostile teams. Friendly/allied units are ignored.
+  once(
+    "for(const side of teamSides){if(side===pool.sourceSide)continue;forEachSpatialUnit(side,pool.mesh.position,pool.radius,unit=>{if(!unit.dead){unit._reactionIcon={key:'mava',until:elapsed+1};dealDamage(unit,pool.power,pool.sourceSide,'element-dot',null,{element:'fire',skipReactions:true,noMatchup:true});}});}",
+    "for(const side of teamSides){if(side===pool.sourceSide||!teams[side]||teams[side].eliminated)continue;forEachSpatialUnit(side,pool.mesh.position,pool.radius,unit=>{if(!unit.dead&&unit.side!==pool.sourceSide){unit._reactionIcon={key:'mava',until:elapsed+1};dealDamage(unit,pool.power,pool.sourceSide,'element-dot',null,{element:'fire',skipReactions:true,noMatchup:true});}});}",
+    'enemy-only Mava damage'
+  );
+
+  return text;
+}
+
+
+function patchMageRosterHudAndEffects(text){
+  function once(oldValue,newValue,label){
+    if(!text.includes(oldValue))throw new Error('Could not add '+label+'.');
+    text=text.replace(oldValue,newValue);
+  }
+
+  // ------------------------------------------------------------
+  // SMALLER OVERHEAD ELEMENT ANIMATIONS
+  // ------------------------------------------------------------
+  once(
+    "#kcRoot .kc-status-icon{position:absolute;display:block;transform:translate(-50%,-100%);width:52px;height:auto;max-width:none;pointer-events:none;",
+    "#kcRoot .kc-status-icon{position:absolute;display:block;transform:translate(-50%,-100%);width:34px;height:auto;max-width:none;pointer-events:none;",
+    'smaller status icon CSS'
+  );
+  once(
+    "const large=unit.type==='ragegiant'||unit.type==='golem',size=large?66:52;node.style.width=size+'px';",
+    "const large=unit.type==='ragegiant'||unit.type==='golem',size=large?44:34;node.style.width=size+'px';",
+    'smaller status icon runtime size'
+  );
+
+  // ------------------------------------------------------------
+  // MAGE ROSTER
+  // Existing Battle Mage cost drops from 36 -> 25.
+  // Add a cheap novice, mid-tier adept, and stronger archmage.
+  // ------------------------------------------------------------
+  once(
+    "Object.freeze({id:'mage',name:'BATTLE MAGE',role:'SPLASH MAGIC + AIR',cost:36,hp:68,damage:17,speed:3.5,range:7.6,rate:1.45,color:0xa985ea,splash:3.8,canHitAir:true}),",
+    "Object.freeze({id:'mage',name:'BATTLE MAGE',role:'MID MAGIC · SPLASH + AIR',cost:25,hp:68,damage:17,speed:3.5,range:7.6,rate:1.42,color:0xa985ea,splash:3.8,canHitAir:true}),",
+    'lower Battle Mage cost'
+  );
+
+  const catapultLine = "Object.freeze({id:'catapult',name:'CATAPULT',role:'LONG-RANGE SIEGE SPLASH · MAX 3',cost:94,hp:175,damage:46,speed:1.95,range:58.125,rate:2.65,color:0xb28654,splash:5.8,towerBonus:1.85,structureDamage:1.35,groundOnly:true,structurePriority:true,siegeEquipment:true,maxActive:3})";
+  const expandedCatapult = catapultLine + `,
+    Object.freeze({id:'novicemage',name:'NOVICE MAGE',role:'CHEAP MAGIC · LIGHT SPLASH + AIR',cost:11,hp:44,damage:7,speed:3.9,range:7.15,rate:1.08,color:0x7bc8ff,splash:1.5,canHitAir:true}),
+    Object.freeze({id:'adeptmage',name:'ADEPT MAGE',role:'FAST MAGIC · MEDIUM SPLASH + AIR',cost:18,hp:56,damage:11,speed:3.7,range:7.35,rate:1.22,color:0x80e1bf,splash:2.5,canHitAir:true}),
+    Object.freeze({id:'archmage',name:'ARCHMAGE',role:'HEAVY MAGIC · LARGE SPLASH + AIR',cost:33,hp:82,damage:25,speed:3.25,range:8.8,rate:1.55,color:0xd393ff,splash:5.0,canHitAir:true})`;
+  once(catapultLine, expandedCatapult, 'three additional mage units');
+
+  // Damage/armor families for the new mage types.
+  once(
+    "mage:Object.freeze({damage:'magic',armor:'arcane'}),medic:Object.freeze({damage:'magic',armor:'light'})",
+    "mage:Object.freeze({damage:'magic',armor:'arcane'}),novicemage:Object.freeze({damage:'magic',armor:'light'}),adeptmage:Object.freeze({damage:'magic',armor:'arcane'}),archmage:Object.freeze({damage:'magic',armor:'arcane'}),medic:Object.freeze({damage:'magic',armor:'light'})",
+    'mage combat types'
+  );
+
+  // Evolution support so the new mage variants progress like the rest of the roster.
+  once(
+    "mage:Object.freeze({name:'ARCANE MASTER',kills:3,hp:1.2,damage:1.4,rangeAdd:1.1,splashAdd:1.2,scale:1.1}),",
+    "mage:Object.freeze({name:'ARCANE MASTER',kills:3,hp:1.2,damage:1.4,rangeAdd:1.1,splashAdd:1.2,scale:1.1}),novicemage:Object.freeze({name:'SPELL ADEPT',kills:3,hp:1.18,damage:1.32,rangeAdd:.7,splashAdd:.6,scale:1.08}),adeptmage:Object.freeze({name:'ARCANE ADEPT',kills:3,hp:1.22,damage:1.34,rangeAdd:.9,splashAdd:.9,scale:1.09}),archmage:Object.freeze({name:'GRAND ARCHMAGE',kills:4,hp:1.24,damage:1.36,rangeAdd:1.2,splashAdd:1.3,scale:1.11}),",
+    'mage evolution definitions'
+  );
+
+  // Reuse the polished mage character model family for the new tiers.
+  once(
+    "else if(type==='mage'){const hat=",
+    "else if(['novicemage','adeptmage','mage','archmage'].includes(type)){const hat=",
+    'mage-family character models'
+  );
+
+  // Ghost possession maps new mages to the existing ghost mage archetype.
+  once(
+    "if(type==='mage'||type==='wyvern'||type==='skyguardian')return'mage';",
+    "if(['novicemage','adeptmage','mage','archmage','wyvern','skyguardian'].includes(type))return'mage';",
+    'mage ghost archetypes'
+  );
+
+  // All mage-family units actually cast their selected element at range.
+  once(
+    "ELEMENT_MAGIC_TYPES=Object.freeze(new Set(['swordsman','guard','lancer']));",
+    "ELEMENT_MAGIC_TYPES=Object.freeze(new Set(['swordsman','guard','lancer','novicemage','adeptmage','mage','archmage']));",
+    'mage elemental casting'
+  );
+
+  // All mage tiers use the grimoire/book family in the Unit Armory.
+  once(
+    "if(type==='mage')return'grimoire';",
+    "if(['novicemage','adeptmage','mage','archmage'].includes(type))return'grimoire';",
+    'mage grimoire equipment'
+  );
+
+  // ------------------------------------------------------------
+  // HUD + HOTKEY FIX
+  // Keep the existing roster's first 15 keys stable, make Medic = 7,
+  // give the three new mages Z/C/V, and make the HUD show these exact keys.
+  // ------------------------------------------------------------
+  once(
+    "UNIT_HOTKEYS=Object.freeze(['1','2','3','4','5','6','7','8','9','0','-','=','`','\\\\','[',']']),SPELL_KEYS=Object.keys(SPELL_DEFS),SPELL_HOTKEYS=Object.freeze(['q','w','e','r','.','z','c','v','n','m',','])",
+    "UNIT_HOTKEYS=Object.freeze(['1','2','3','4','5','6','7','8','9','0','-','=','q','w','e','z','c','v']),SPELL_KEYS=Object.keys(SPELL_DEFS),SPELL_HOTKEYS=Object.freeze(['r','t','y','u','i','o','p','[',']','\\\\','`'])",
+    'matching unit and spell HUD hotkeys'
+  );
+
+  once(
+    "const elementHotkey=ELEMENT_SHORTCUT_KEYS.indexOf(k),customActionKeyPool=['1','2','3','4','5','6','8','9','0','-','=','q','w','e','r','t','y','u','i','o','p','[',']','\\\\'],customUnitHotkeys=customActionKeyPool.slice(0,UNIT_KEYS.length),customSpellHotkeys=customActionKeyPool.slice(UNIT_KEYS.length,UNIT_KEYS.length+SPELL_KEYS.length);",
+    "const elementHotkey=ELEMENT_SHORTCUT_KEYS.indexOf(k),customUnitHotkeys=UNIT_HOTKEYS,customSpellHotkeys=SPELL_HOTKEYS;",
+    'keyboard input matched to HUD labels'
+  );
+
+  // Explicit Medic click fallback in addition to the normal generic handler.
+  once(
+    "root.querySelectorAll('[data-unit]').forEach(b=>b.onclick=()=>armUnit(b.dataset.unit));",
+    "root.querySelectorAll('[data-unit]').forEach(b=>b.onclick=()=>armUnit(b.dataset.unit));const medicUnitButton=root.querySelector('[data-unit=\"medic\"]');if(medicUnitButton)medicUnitButton.onclick=()=>armUnit('medic');",
+    'Medic button fallback'
+  );
+
+  // Fit the larger roster cleanly into the bottom HUD.
+  once(
+    ".kc-command{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px}",
+    ".kc-command{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:3px}.kc-command-row>.kc-command:first-child{grid-template-columns:repeat(6,minmax(0,1fr));max-height:164px;overflow-y:auto;scrollbar-width:thin}.kc-command-row>.kc-command:first-child .kc-action.unit{min-height:34px;font-size:5px}.kc-command-row>.kc-command:first-child .kc-action small{font-size:7px}",
+    'expanded unit HUD grid'
+  );
+
+  return text;
+}
+
+
+function patchWeakerFireball(text){
+  const oldFireball="if(spell==='fireball'){const rainFire=1-(1-RAIN_FIRE_MULT)*weatherRainIntensity();enemies.forEach(u=>dealDamage(u,58*power*rainFire,side,'fireball'));nearFoeStructures.forEach(o=>dealDamage(o,(o.kind==='hero'?14:18)*power*rainFire,side,'fireball'));addBurst(p.x,2.4,p.z,d.color,1.5);}";
+  const newFireball="if(spell==='fireball'){const rainFire=1-(1-RAIN_FIRE_MULT)*weatherRainIntensity();enemies.forEach(u=>dealDamage(u,42*power*rainFire,side,'fireball'));nearFoeStructures.forEach(o=>dealDamage(o,(o.kind==='hero'?10:13)*power*rainFire,side,'fireball'));addBurst(p.x,2.4,p.z,d.color,1.5);}";
+  if(!text.includes(oldFireball))throw new Error('Could not weaken Fireball.');
+  return text.replace(oldFireball,newFireball);
+}
+
+
+function patchDirectKeysAndElementGrid(text){
+  function once(oldValue,newValue,label){
+    if(!text.includes(oldValue))throw new Error('Could not add '+label+'.');
+    text=text.replace(oldValue,newValue);
+  }
+
+  // ------------------------------------------------------------
+  // DIRECT, SIMULTANEOUS UNIT + SPELL HOTKEYS
+  // Units:  1234567890-= ASDFGH
+  // Spells: QWERTYUIOP[
+  // Elements are selected only with the arrow-key 3x3 grid.
+  // ------------------------------------------------------------
+  once(
+    "UNIT_HOTKEYS=Object.freeze(['1','2','3','4','5','6','7','8','9','0','-','=','q','w','e','z','c','v']),SPELL_KEYS=Object.keys(SPELL_DEFS),SPELL_HOTKEYS=Object.freeze(['r','t','y','u','i','o','p','[',']','\\\\','`'])",
+    "UNIT_HOTKEYS=Object.freeze(['1','2','3','4','5','6','7','8','9','0','-','=','a','s','d','f','g','h']),SPELL_KEYS=Object.keys(SPELL_DEFS),SPELL_HOTKEYS=Object.freeze(['q','w','e','r','t','y','u','i','o','p','['])",
+    'direct unit and spell hotkeys'
+  );
+
+  // ------------------------------------------------------------
+  // SAVED ELEMENT GRID EDITOR
+  // Optimized so all six two-element reactions are one arrow step apart:
+  // ICE       WATER      PLANT
+  // DUSK      THUNDER    FIRE
+  // DAWN      PHYSICAL   METAL
+  // ------------------------------------------------------------
+  const binder="  function bindTeamOutfitSelectors(root){root.querySelectorAll('[data-team-outfit-slot]').forEach(select=>select.onchange=()=>{selectedTeamOutfit[select.dataset.teamOutfitSlot]=select.value;persistTeamOutfit();});}";
+  if(!text.includes(binder))throw new Error('Could not add element grid settings.');
+  text=text.replace(binder,binder+`
+  const ELEMENT_GRID_STORAGE_KEY='kingdom_clash_element_grid_v1';
+  const ELEMENT_GRID_AUTO=Object.freeze(['ice','water','plant','dusk','thunder','fire','dawn','physical','metal']);
+  function normalizeElementGrid(value){
+    const source=Array.isArray(value)?value.map(String):[],seen=new Set(),clean=[];
+    for(const key of source)if(ELEMENT_DEFS[key]&&!seen.has(key)){seen.add(key);clean.push(key);}
+    for(const key of ELEMENT_GRID_AUTO)if(!seen.has(key)){seen.add(key);clean.push(key);}
+    return clean.slice(0,9);
+  }
+  function loadElementGrid(){
+    try{
+      const saved=JSON.parse(localStorage.getItem(ELEMENT_GRID_STORAGE_KEY)||'null');
+      return Array.isArray(saved)?normalizeElementGrid(saved):[...ELEMENT_GRID_AUTO];
+    }catch(e){return [...ELEMENT_GRID_AUTO];}
+  }
+  let selectedElementGrid=loadElementGrid();
+  function persistElementGrid(){
+    selectedElementGrid=normalizeElementGrid(selectedElementGrid);
+    try{localStorage.setItem(ELEMENT_GRID_STORAGE_KEY,JSON.stringify(selectedElementGrid));}catch(e){}
+    return selectedElementGrid;
+  }
+  function elementGridOrder(){return normalizeElementGrid(selectedElementGrid);}
+  function elementGridMarkup(){
+    const order=elementGridOrder(),positions=['↖','↑','↗','←','●','→','↙','↓','↘'];
+    return '<div style="padding:9px;border:1px solid rgba(127,201,255,.3);border-radius:10px;background:#0b1821">'+
+      '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px">'+
+      order.map((key,index)=>{
+        const options=ELEMENT_KEYS.map(choice=>'<option value="'+choice+'" '+(choice===key?'selected':'')+'>'+ELEMENT_DEFS[choice].name+'</option>').join('');
+        return '<label style="display:grid;grid-template-columns:24px minmax(0,1fr);align-items:center;gap:4px;padding:5px;border:1px solid rgba(255,255,255,.12);border-radius:7px;background:#102733">'+
+          '<span style="color:#ffd977;text-align:center;font-weight:900">'+positions[index]+'</span>'+
+          '<select data-element-grid-slot="'+index+'" style="width:100%;min-width:0;padding:6px 4px;border:1px solid #4d7084;border-radius:6px;background:#091a24;color:#fff;font:700 10px Chakra Petch">'+options+'</select></label>';
+      }).join('')+
+      '</div><div class="kc-buttons" style="margin-top:8px">'+
+      button('AUTO COMBO','primary','data-act="element-grid-auto"')+
+      button('ORIGINAL ORDER','blue','data-act="element-grid-reset"')+
+      '</div><div class="kc-equipment-note">ARROW KEYS MOVE THROUGH THIS 3 × 3 GRID. CHANGE ANY SLOT TO SWAP TWO ELEMENTS. AUTO COMBO KEEPS WATER + THUNDER, WATER + PLANT, WATER + ICE, FIRE + PLANT, FIRE + THUNDER, AND FIRE + METAL DIRECTLY ADJACENT.</div></div>';
+  }
+  function bindElementGridEditor(root){
+    const refresh=()=>{
+      const order=elementGridOrder();
+      root.querySelectorAll('[data-element-grid-slot]').forEach(select=>{
+        const index=Number(select.dataset.elementGridSlot)||0;
+        select.value=order[index];
+      });
+    };
+    root.querySelectorAll('[data-element-grid-slot]').forEach(select=>select.onchange=()=>{
+      const index=Number(select.dataset.elementGridSlot)||0,next=String(select.value),order=elementGridOrder(),old=order[index],other=order.indexOf(next);
+      if(other>=0&&other!==index)order[other]=old;
+      order[index]=next;
+      selectedElementGrid=normalizeElementGrid(order);
+      persistElementGrid();
+      refresh();
+    });
+    const auto=root.querySelector('[data-act="element-grid-auto"]');
+    if(auto)auto.onclick=()=>{
+      selectedElementGrid=[...ELEMENT_GRID_AUTO];
+      persistElementGrid();
+      refresh();
+      auto.textContent='AUTO COMBO ✓';
+      setTimeout(()=>{if(auto.isConnected)auto.textContent='AUTO COMBO';},650);
+    };
+    const reset=root.querySelector('[data-act="element-grid-reset"]');
+    if(reset)reset.onclick=()=>{
+      selectedElementGrid=[...ELEMENT_KEYS];
+      persistElementGrid();
+      refresh();
+    };
+    refresh();
+  }`);
+
+  // Main menu editor.
+  once(
+    "<h2>TEAM OUTFIT COMBINATION</h2>'+teamOutfitMarkup()+'<h2>CPU COMMANDER</h2>",
+    "<h2>TEAM OUTFIT COMBINATION</h2>'+teamOutfitMarkup()+'<h2>ELEMENT ARROW LAYOUT</h2>'+elementGridMarkup()+'<h2>CPU COMMANDER</h2>",
+    'main menu element grid editor'
+  );
+  once(
+    "bindEquipmentSelectors(root);bindTeamOutfitSelectors(root);root.querySelectorAll('[data-difficulty]')",
+    "bindEquipmentSelectors(root);bindTeamOutfitSelectors(root);bindElementGridEditor(root);root.querySelectorAll('[data-difficulty]')",
+    'element grid editor binding'
+  );
+
+  // Battle element buttons follow the saved grid and no longer claim A-L shortcuts.
+  once(
+    "ELEMENT_KEYS.map((key,index)=>button(ELEMENT_SHORTCUT_KEYS[index].toUpperCase()+' · '+ELEMENT_DEFS[key].name,key==='physical'?'sel':'','data-element=\"'+key+'\" title=\"'+ELEMENT_SHORTCUT_KEYS[index].toUpperCase()+' · '+ELEMENT_DEFS[key].name+'\" style=\"--element-color:'+ELEMENT_DEFS[key].css+'\"')).join('')",
+    "elementGridOrder().map((key,index)=>button(ELEMENT_DEFS[key].name,key==='physical'?'sel':'','data-element=\"'+key+'\" title=\"ARROW GRID · '+ELEMENT_DEFS[key].name+'\" style=\"--element-color:'+ELEMENT_DEFS[key].css+'\"')).join('')",
+    'saved battle element grid'
+  );
+
+  // Keyboard: replace the old A-L element logic and prior action mapping.
+  const keyStart="const elementHotkey=ELEMENT_SHORTCUT_KEYS.indexOf(k),customUnitHotkeys=UNIT_HOTKEYS,customSpellHotkeys=SPELL_HOTKEYS;";
+  const keyStartNew="const grid=elementGridOrder();if(/^Arrow(Left|Right|Up|Down)$/.test(e.code)){const current=Math.max(0,grid.indexOf(selectedElement)),row=Math.floor(current/3),col=current%3;let next=current;if(e.code==='ArrowLeft')next=row*3+(col+2)%3;else if(e.code==='ArrowRight')next=row*3+(col+1)%3;else if(e.code==='ArrowUp')next=((row+2)%3)*3+col;else if(e.code==='ArrowDown')next=((row+1)%3)*3+col;setSelectedElement(grid[next]);e.preventDefault();return;}";
+  once(keyStart,keyStartNew,'arrow-key element navigation');
+
+  once(
+    "if(elementHotkey>=0&&elementHotkey<ELEMENT_KEYS.length){setSelectedElement(ELEMENT_KEYS[elementHotkey]);e.preventDefault();return;}\n    const unitHotkey=customUnitHotkeys.indexOf(k);if(unitHotkey>=0)armUnit(UNIT_KEYS[unitHotkey]);else if(customSpellHotkeys.includes(k))armSpell(SPELL_KEYS[customSpellHotkeys.indexOf(k)]);else if(k==='p')armOrder('patrol');else if(k==='b')armBarricade();else if(k==='t')rotateBarricade();else if(k==='u')armUpgrade('power');else if(k==='i')armUpgrade('special');else if(k==='y')armTransform('a');else if(k==='o')armSellTower();else if(k==='x')playerClearOrders();else return;e.preventDefault();}",
+    "const unitHotkey=UNIT_HOTKEYS.indexOf(k),spellHotkey=SPELL_HOTKEYS.indexOf(k);if(unitHotkey>=0&&unitHotkey<UNIT_KEYS.length)armUnit(UNIT_KEYS[unitHotkey]);else if(spellHotkey>=0&&spellHotkey<SPELL_KEYS.length)armSpell(SPELL_KEYS[spellHotkey]);else if(k==='j')armOrder('attack');else if(k==='k')armOrder('defend');else if(k==='l')armOrder('retreat');else if(k==='b')armBarricade();else if(k==='x')playerClearOrders();else return;e.preventDefault();}",
+    'direct keyboard unit spell controls'
+  );
+
+  // Remove obsolete command labels that now collide with unit/spell keys.
+  text=text.replace('F · ATTACK <span data-attack-count>','J · ATTACK <span data-attack-count>');
+  text=text.replace('G · DEFEND <span data-defend-count>','K · DEFEND <span data-defend-count>');
+  text=text.replace('P · PATROL <span data-patrol-count>','PATROL <span data-patrol-count>');
+  text=text.replace('J · GATHER <span data-gather-count>','GATHER <span data-gather-count>');
+  text=text.replace('K · ESCORT <span data-escort-count>','ESCORT <span data-escort-count>');
+  text=text.replace('T · TURN WALL','TURN WALL');
+  text=text.replace('U · POWER UPGRADE','POWER UPGRADE');
+  text=text.replace('I · RANGE UPGRADE','RANGE UPGRADE');
+  text=text.replace('Y · TRANSFORM A','TRANSFORM A');
+  text=text.replace('H · TRANSFORM B','TRANSFORM B');
+  text=text.replace('O · SELL ANYTHING','SELL ANYTHING');
+
+  return text;
+}
+
+
+function patchVisibleElementGrid(text){
+  const oldCss="#kcRoot .kc-element-strip{display:flex;gap:5px;flex-wrap:wrap;padding:6px 7px;border-bottom:1px solid rgba(255,255,255,.12);background:rgba(4,11,17,.82)}";
+  const newCss="#kcRoot .kc-element-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;width:min(360px,100%);box-sizing:border-box;margin:0 auto;padding:6px 7px;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:rgba(4,11,17,.82)}";
+  if(!text.includes(oldCss))throw new Error('Could not make element selector visibly 3x3.');
+  text=text.replace(oldCss,newCss);
+
+  const oldButtonCss="#kcRoot .kc-element-strip .kc-btn{position:relative;padding:7px 9px;font-size:7px;border-bottom:3px solid var(--element-color,#fff)}";
+  const newButtonCss="#kcRoot .kc-element-strip .kc-btn{position:relative;min-width:0;width:100%;min-height:34px;padding:7px 5px;font-size:7px;line-height:1.15;border-bottom:3px solid var(--element-color,#fff);white-space:normal}";
+  if(!text.includes(oldButtonCss))throw new Error('Could not size 3x3 element buttons.');
+  text=text.replace(oldButtonCss,newButtonCss);
+
+  return text;
+}
+
+
+function patchCompactRightElementGrid(text){
+  function once(oldValue,newValue,label){
+    if(!text.includes(oldValue))throw new Error('Could not add '+label+'.');
+    text=text.replace(oldValue,newValue);
+  }
+
+  // Put the command controls and the 3x3 element selector on the same row.
+  once(
+    ".kc-toolbar-body{display:block}.kc-mobile-toggle{display:none}.kc-command-row{display:grid;grid-template-columns:1.5fr .85fr;gap:5px}",
+    ".kc-toolbar-body{display:grid;grid-template-columns:minmax(0,1fr) 154px;grid-template-areas:'commands elements' 'orders orders';gap:4px;align-items:start}.kc-mobile-toggle{display:none}.kc-command-row{grid-area:commands;display:grid;grid-template-columns:1.5fr .85fr;gap:5px}",
+    'right-side element HUD column'
+  );
+
+  once(
+    ".kc-order-row{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin-top:4px}",
+    ".kc-order-row{grid-area:orders;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin-top:4px}",
+    'order row spanning full HUD'
+  );
+
+  // Replace the earlier large centered 3x3 block with a compact right-side block.
+  once(
+    "#kcRoot .kc-element-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;width:min(360px,100%);box-sizing:border-box;margin:0 auto;padding:6px 7px;border:1px solid rgba(255,255,255,.12);border-radius:10px;background:rgba(4,11,17,.82)}",
+    "#kcRoot .kc-element-strip{grid-area:elements;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:2px;width:154px;box-sizing:border-box;margin:0;padding:3px;border:1px solid rgba(255,255,255,.12);border-radius:8px;background:rgba(4,11,17,.9);align-self:start}",
+    'compact right-side element selector'
+  );
+
+  once(
+    "#kcRoot .kc-element-strip .kc-btn{position:relative;min-width:0;width:100%;min-height:34px;padding:7px 5px;font-size:7px;line-height:1.15;border-bottom:3px solid var(--element-color,#fff);white-space:normal}",
+    "#kcRoot .kc-element-strip .kc-btn{position:relative;min-width:0;width:100%;min-height:25px;padding:3px 2px;font-size:4.7px;line-height:1.05;border-radius:6px;border-bottom:2px solid var(--element-color,#fff);white-space:normal}",
+    'smaller element buttons'
+  );
+
+  // Scale down a little further on narrow screens without changing the 3x3 layout.
+  const mobileMarker="#kcRoot .kc-toast{top:78px!important;max-width:68vw!important;padding:5px 7px!important;font-size:7px!important;line-height:1.25!important}";
+  if(text.includes(mobileMarker)){
+    text=text.replace(
+      mobileMarker,
+      mobileMarker+"#kcRoot .kc-toolbar-body{grid-template-columns:minmax(0,1fr) 126px!important}#kcRoot .kc-element-strip{width:126px!important;gap:2px!important;padding:2px!important}#kcRoot .kc-element-strip .kc-btn{min-height:22px!important;padding:2px 1px!important;font-size:4.1px!important}"
+    );
+  }
+
+  return text;
+}
+
+
+function patchEdgeToEdgeHudFix(text){
+  // Append a final HUD override after the earlier layout styles. This avoids
+  // desktop/mobile media rules reintroducing margins or clipping the roster.
+  const marker="    const canvas=root.querySelector('.kc-canvas'),nightCanvas=root.querySelector('.kc-night-veil')";
+  if(!text.includes(marker))throw new Error('Could not add edge-to-edge battle HUD.');
+
+  const override=`    if(!document.getElementById('kc-edge-hud-style')){const edgeHudStyle=document.createElement('style');edgeHudStyle.id='kc-edge-hud-style';edgeHudStyle.textContent=\`
+      #kcRoot .kc-toolbar{
+        left:0!important;right:0!important;bottom:0!important;transform:none!important;
+        width:100%!important;max-width:none!important;box-sizing:border-box!important;
+        margin:0!important;padding:3px 0 0!important;
+        border-left:0!important;border-right:0!important;border-bottom:0!important;
+        border-radius:8px 8px 0 0!important;
+      }
+      #kcRoot .kc-toolbar-body{
+        display:grid!important;
+        grid-template-columns:minmax(0,1fr) 190px!important;
+        grid-template-areas:"commands elements" "orders orders"!important;
+        gap:2px!important;align-items:start!important;width:100%!important;min-width:0!important;
+      }
+      #kcRoot .kc-command-row{
+        grid-area:commands!important;min-width:0!important;width:100%!important;
+        gap:2px!important;padding-left:0!important;margin-left:0!important;
+      }
+      #kcRoot .kc-command{min-width:0!important;gap:2px!important;}
+      #kcRoot .kc-command-row>.kc-command:first-child{
+        grid-template-columns:repeat(6,minmax(0,1fr))!important;
+        max-height:none!important;height:auto!important;overflow:visible!important;
+        scrollbar-width:auto!important;align-content:start!important;
+      }
+      #kcRoot .kc-command-row>.kc-command:nth-child(2){
+        min-width:0!important;
+      }
+      #kcRoot .kc-element-strip{
+        grid-area:elements!important;justify-self:end!important;align-self:start!important;
+        width:190px!important;max-width:190px!important;margin:0!important;
+        padding:3px 0 3px 3px!important;gap:2px!important;
+        border-right:0!important;border-radius:8px 0 0 8px!important;
+        box-sizing:border-box!important;
+      }
+      #kcRoot .kc-element-strip .kc-btn{
+        min-height:25px!important;padding:3px 2px!important;font-size:4.7px!important;
+      }
+      #kcRoot .kc-order-row{
+        grid-area:orders!important;width:100%!important;margin:2px 0 0!important;
+        padding:0!important;
+      }
+      #kcRoot .kc-action.unit .kc-element-name{display:none!important;}
+      #kcRoot .kc-unit-card,#kcRoot .kc-unit-card>.kc-action{overflow:visible!important;}
+      @media(max-width:780px){
+        #kcRoot .kc-toolbar{width:100%!important;left:0!important;right:0!important;bottom:0!important;padding:2px 0 0!important;border-radius:6px 6px 0 0!important;}
+        #kcRoot .kc-toolbar-body{grid-template-columns:minmax(0,1fr) 138px!important;gap:1px!important;}
+        #kcRoot .kc-element-strip{width:138px!important;max-width:138px!important;padding:2px 0 2px 2px!important;gap:1px!important;}
+        #kcRoot .kc-element-strip .kc-btn{min-height:21px!important;padding:2px 1px!important;font-size:3.8px!important;}
+        #kcRoot .kc-command-row>.kc-command:first-child{grid-template-columns:repeat(6,minmax(0,1fr))!important;}
+      }
+      @media(max-width:1000px) and (max-height:500px){
+        #kcRoot .kc-toolbar{width:100%!important;left:0!important;right:0!important;bottom:0!important;padding:2px 0 0!important;}
+        #kcRoot .kc-toolbar-body{grid-template-columns:minmax(0,1fr) 150px!important;}
+        #kcRoot .kc-element-strip{width:150px!important;max-width:150px!important;}
+        #kcRoot .kc-command-row>.kc-command:first-child{max-height:none!important;overflow:visible!important;}
+      }
+    \`;document.head.appendChild(edgeHudStyle);}
+`;
+  text=text.replace(marker,override+marker);
+  return text;
+}
+
+
+function patchHealersManaAndLadders(text){
+  function once(oldValue,newValue,label){
+    if(!text.includes(oldValue))throw new Error('Could not add '+label+'.');
+    text=text.replace(oldValue,newValue);
+  }
+
+  // ============================================================
+  // HEALER ROSTER
+  // ============================================================
+  once(
+    "Object.freeze({id:'medic',name:'FIELD MEDIC',role:'HEALS ALLIES',cost:30,hp:84,damage:5,speed:3.7,range:5.8,rate:1.25,color:0x6ddaa2,heal:24}),",
+    "Object.freeze({id:'medic',name:'FIELD MEDIC',role:'BALANCED HEALER',cost:20,hp:84,damage:5,speed:3.7,range:5.8,rate:1.25,color:0x6ddaa2,heal:24}),",
+    'cheaper Field Medic'
+  );
+
+  once(
+    "Object.freeze({id:'archmage',name:'ARCHMAGE',role:'HEAVY MAGIC · LARGE SPLASH + AIR',cost:33,hp:82,damage:25,speed:3.25,range:8.8,rate:1.55,color:0xd393ff,splash:5.0,canHitAir:true})",
+    "Object.freeze({id:'archmage',name:'ARCHMAGE',role:'HEAVY MAGIC · LARGE SPLASH + AIR',cost:33,hp:82,damage:25,speed:3.25,range:8.8,rate:1.55,color:0xd393ff,splash:5.0,canHitAir:true}),Object.freeze({id:'apprenticehealer',name:'APPRENTICE HEALER',role:'CHEAP FAST HEALER',cost:12,hp:54,damage:2,speed:4.15,range:5.1,rate:1.0,color:0x8be8b8,heal:13}),Object.freeze({id:'highcleric',name:'HIGH CLERIC',role:'STRONG LONG-RANGE HEALER',cost:29,hp:102,damage:7,speed:3.35,range:7.1,rate:1.38,color:0xb4ffd6,heal:38})",
+    'additional healer units'
+  );
+
+  once(
+    "medic:Object.freeze({damage:'magic',armor:'light'})",
+    "medic:Object.freeze({damage:'magic',armor:'light'}),apprenticehealer:Object.freeze({damage:'magic',armor:'light'}),highcleric:Object.freeze({damage:'magic',armor:'arcane'})",
+    'healer combat types'
+  );
+
+  once(
+    "medic:Object.freeze({name:'LIFEKEEPER',kills:3,hp:1.3,damage:1.18,heal:1.55,rangeAdd:1,scale:1.1}),",
+    "medic:Object.freeze({name:'LIFEKEEPER',kills:3,hp:1.3,damage:1.18,heal:1.55,rangeAdd:1,rate:.93,scale:1.1}),apprenticehealer:Object.freeze({name:'FIELD RESTORER',kills:3,hp:1.25,damage:1.1,heal:1.5,rangeAdd:.7,rate:.93,scale:1.08}),highcleric:Object.freeze({name:'GRAND LIFEKEEPER',kills:4,hp:1.32,damage:1.15,heal:1.62,rangeAdd:1.2,rate:.93,scale:1.1}),",
+    'healer evolutions'
+  );
+
+  once(
+    "else if(type==='medic'){const pack=",
+    "else if(['medic','apprenticehealer','highcleric'].includes(type)){const pack=",
+    'healer character models'
+  );
+
+  once(
+    "if(type==='medic')return'healer';",
+    "if(['medic','apprenticehealer','highcleric'].includes(type))return'healer';",
+    'healer ghost archetypes'
+  );
+
+  once(
+    "if(type==='medic')return'codex';",
+    "if(['medic','apprenticehealer','highcleric'].includes(type))return'codex';",
+    'healer codex equipment'
+  );
+
+  // Keep every existing unit key stable. New healers use the two remaining
+  // physical rack keys: ] and backslash.
+  once(
+    "UNIT_HOTKEYS=Object.freeze(['1','2','3','4','5','6','7','8','9','0','-','=','a','s','d','f','g','h']),SPELL_KEYS=Object.keys(SPELL_DEFS)",
+    "UNIT_HOTKEYS=Object.freeze(['1','2','3','4','5','6','7','8','9','0','-','=','a','s','d','f','g','h',']','\\\\']),SPELL_KEYS=Object.keys(SPELL_DEFS)",
+    'new healer hotkeys'
+  );
+
+  // ============================================================
+  // FAIR MANA
+  // Every CPU team already owns/spends its own mana and maxMana. Give every
+  // team the same 8.2/s base regeneration instead of difficulty-based regen.
+  // ============================================================
+  once(
+    "const cpuRegen=difficulty==='apprentice'?7.4:difficulty==='warlord'?9.1:8.2,manaWeather=weatherManaMultiplier()",
+    "const cpuRegen=8.2,manaWeather=weatherManaMultiplier()",
+    'equal CPU mana regeneration'
+  );
+
+  // Add enemy mana presentation to the rival HUD.
+  once(
+    '<div class="kc-hudbox enemy"><b>RIVAL COMMANDERS</b><div class="kc-bar red"><i data-enemy-hp></i></div><span data-enemy-text></span><br><span data-enemy-towers></span></div>',
+    '<div class="kc-hudbox enemy"><b>RIVAL COMMANDERS</b><div class="kc-bar red"><i data-enemy-hp></i></div><span data-enemy-text></span><div class="kc-bar kc-mana" data-enemy-mana-wrap><i data-enemy-mana></i></div><span data-enemy-mana-text></span><br><span data-enemy-towers></span></div>',
+    'enemy mana HUD'
+  );
+
+  once(
+    "set('[data-enemy-towers]',rivals.map(team=>team.name+' BASES '+team.bases.filter(base=>!base.dead&&base.owner===team.side).length+' · POSTS '+team.towers.filter(t=>!t.dead).length).join(' · '));const worldTime=gameTimeState();",
+    "set('[data-enemy-towers]',rivals.map(team=>team.name+' BASES '+team.bases.filter(base=>!base.dead&&base.owner===team.side).length+' · POSTS '+team.towers.filter(t=>!t.dead).length).join(' · '));const enemyManaWrap=uiNode('[data-enemy-mana-wrap]'),enemyManaText=uiNode('[data-enemy-mana-text]');if(rivals.length===1){const rival=rivals[0];if(enemyManaWrap)enemyManaWrap.style.display='';width('[data-enemy-mana]',rival.maxMana?rival.mana/rival.maxMana*100:0);set('[data-enemy-mana-text]',rival.name+' · '+Math.floor(rival.mana)+' / '+rival.maxMana+' MANA');}else{if(enemyManaWrap)enemyManaWrap.style.display='none';set('[data-enemy-mana-text]',rivals.map(team=>team.name+' '+(team.eliminated?'OUT':Math.floor(team.mana)+' / '+team.maxMana+' MANA')).join(' · '));}const worldTime=gameTimeState();",
+    'enemy mana display rules'
+  );
+
+  // ============================================================
+  // SPAWNABLE FORT LADDERS
+  // ============================================================
+  once(
+    "const ORDER_MODES=Object.freeze(['attack','defend','patrol','gather','escort','retreat']);",
+    "const ORDER_MODES=Object.freeze(['attack','defend','patrol','gather','escort','retreat']),CLIMB_LADDER=Object.freeze({cost:18,maxActive:8,width:1.45});",
+    'ladder build definition'
+  );
+
+  once(
+    "const fortBonfires=[],wildlifeZones=[]",
+    "const climbLadders=[],fortBonfires=[],wildlifeZones=[]",
+    'ladder runtime collection'
+  );
+
+  // Ladder geometry/path helpers. The placement point chooses the nearest
+  // fort wall automatically, then the ladder spans from outside ground to
+  // the actual wall/deck height.
+  const movementMarker="function movementPointBlocked(x,z,clearance=.72,ignoreId=0,ignoreFortWalls=false){";
+  if(!text.includes(movementMarker))throw new Error('Could not add climbable ladder path helpers.');
+  text=text.replace(movementMarker,`function climbLadderAt(x,z,padding=0){
+      let best=null;
+      for(const ladder of climbLadders){
+        if(!ladder||ladder.dead)continue;if(ladder.obstacle&&!obstacleActive(ladder.obstacle)){ladder.dead=true;if(ladder.mesh)ladder.mesh.visible=false;continue;}
+        const info=pointSegmentInfo(x,z,ladder.start,ladder.end),width=ladder.width*.5+padding;
+        if(info.distance<=width){
+          const height=ladder.baseY+(ladder.topY-ladder.baseY)*info.t;
+          if(!best||info.distance<best.distance)best={ladder,t:info.t,height,distance:info.distance};
+        }else{
+          const topDistance=Math.hypot(x-ladder.end.x,z-ladder.end.z);
+          if(topDistance<=ladder.width*1.25+padding){
+            if(!best||topDistance<best.distance)best={ladder,t:1,height:ladder.topY,distance:topDistance};
+          }
+        }
+      }
+      return best;
+    }
+    function climbableWallSpec(point){
+      const scale=mapSize.scale,maxDistance=7*scale,edgePadding=.55*scale;
+      let best=null;
+      for(const obstacle of solidObstacles){
+        if(!obstacle||!obstacleActive(obstacle)||!['fort-wall','barricade'].includes(obstacle.kind))continue;
+        const dx=point.x-obstacle.x,dz=point.z-obstacle.z;
+        let forwardX=1,forwardZ=0,lateralX=0,lateralZ=1,halfForward=Math.max(.2,Math.abs(Number(obstacle.w)||1)*.5),halfLateral=Math.max(.2,Math.abs(Number(obstacle.d)||1)*.5);
+        if(obstacle.oriented){
+          forwardX=Number(obstacle.forwardX)||1;forwardZ=Number(obstacle.forwardZ)||0;lateralX=Number(obstacle.lateralX)||0;lateralZ=Number(obstacle.lateralZ)||1;
+          halfForward=Math.max(.2,Math.abs(Number(obstacle.halfForward)||halfForward));halfLateral=Math.max(.2,Math.abs(Number(obstacle.halfLateral)||halfLateral));
+        }
+        const localForward=dx*forwardX+dz*forwardZ,localLateral=dx*lateralX+dz*lateralZ,forwardFaceDistance=Math.abs(Math.abs(localForward)-halfForward),lateralFaceDistance=Math.abs(Math.abs(localLateral)-halfLateral);
+        let normalX,normalZ,tangentX,tangentZ,faceX,faceZ;
+        if(forwardFaceDistance<=lateralFaceDistance){
+          const sign=localForward>=0?1:-1,along=clamp(localLateral,-Math.max(0,halfLateral-edgePadding),Math.max(0,halfLateral-edgePadding));
+          normalX=forwardX*sign;normalZ=forwardZ*sign;tangentX=lateralX;tangentZ=lateralZ;faceX=obstacle.x+forwardX*sign*halfForward+lateralX*along;faceZ=obstacle.z+forwardZ*sign*halfForward+lateralZ*along;
+        }else{
+          const sign=localLateral>=0?1:-1,along=clamp(localForward,-Math.max(0,halfForward-edgePadding),Math.max(0,halfForward-edgePadding));
+          normalX=lateralX*sign;normalZ=lateralZ*sign;tangentX=forwardX;tangentZ=forwardZ;faceX=obstacle.x+lateralX*sign*halfLateral+forwardX*along;faceZ=obstacle.z+lateralZ*sign*halfLateral+forwardZ*along;
+        }
+        const distance=Math.hypot(point.x-faceX,point.z-faceZ);if(distance>maxDistance||(best&&distance>=best.distance))continue;
+        best={obstacle,distance,face:{x:faceX,z:faceZ},normal:{x:normalX,z:normalZ},tangent:{x:tangentX,z:tangentZ}};
+      }
+      return best;
+    }
+    function ladderPlacementSpec(point){
+      const chosen=climbableWallSpec(point);if(!chosen)return null;
+      const scale=mapSize.scale,outside=2.45*scale,inside=2.25*scale,{obstacle,face,normal}=chosen,start={x:face.x+normal.x*outside,z:face.z+normal.z*outside},end={x:face.x-normal.x*inside,z:face.z-normal.z*inside},baseY=terrainSurfaceHeightAt(start.x,start.z);
+      let topY;
+      if(obstacle.kind==='barricade'&&obstacle.target&&obstacle.target.mesh){topY=obstacle.target.mesh.position.y+1.6;}
+      else{
+        const layout=obstacle.fortSide?fortLayouts.find(entry=>entry.side===obstacle.fortSide):null,deckY=fortSurfaceHeightAt(end.x,end.z,false),faceY=fortSurfaceHeightAt(face.x,face.z,false),layoutTop=layout?(Number(layout.baseY)||0)+(Number(layout.firingHeight)||8.5*scale):-Infinity;
+        topY=Math.max(deckY,faceY,layoutTop);
+      }
+      if(!Number.isFinite(topY)||topY-baseY<1.05*scale)return null;
+      return{obstacle,start,end,baseY,topY,width:CLIMB_LADDER.width*scale};
+    }
+    function makeLadderBeam(start,end,radius,material){
+      const a=new THREE.Vector3(start.x,start.y,start.z),b=new THREE.Vector3(end.x,end.y,end.z),delta=b.clone().sub(a),length=delta.length(),beam=new THREE.Mesh(new THREE.CylinderGeometry(radius,radius,length,6),material);
+      beam.position.copy(a).add(b).multiplyScalar(.5);beam.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0),delta.normalize());beam.castShadow=quality.shadows;beam.receiveShadow=quality.shadows;return beam;
+    }
+    function buildClimbLadder(side,point,free=false){
+      const team=teams[side],cost=team?structureManaCost(team,CLIMB_LADDER.cost):CLIMB_LADDER.cost;
+      if(!team||team.eliminated||finished||!battleStarted)return false;
+      if(climbLadders.filter(ladder=>!ladder.dead&&ladder.side===side).length>=CLIMB_LADDER.maxActive){if(isLocal(side))toast('LADDER LIMIT REACHED · '+CLIMB_LADDER.maxActive);return false;}
+      if(!free&&team.mana<cost){if(isLocal(side))toast('NOT ENOUGH MANA · NEED '+cost);return false;}
+      const spec=ladderPlacementSpec(point);if(!spec){if(isLocal(side))toast('PLACE THE LADDER BESIDE A FORT WALL OR BARRICADE');return false;}
+      if(!free)team.mana-=cost;
+      const dx=spec.end.x-spec.start.x,dz=spec.end.z-spec.start.z,horizontal=Math.hypot(dx,dz)||1,dirX=dx/horizontal,dirZ=dz/horizontal,tanX=-dirZ,tanZ=dirX,group=new THREE.Group(),material=mat(0x9a6a3d,.96,.015),half=spec.width*.42;
+      const railStartY=spec.baseY+.12*mapSize.scale,railEndY=spec.topY+.12*mapSize.scale;
+      for(const sign of [-1,1])group.add(makeLadderBeam({x:spec.start.x+tanX*half,y:railStartY,z:spec.start.z+tanZ*half},{x:spec.end.x+tanX*half,y:railEndY,z:spec.end.z+tanZ*half},.075*mapSize.scale,material));
+      const diagonal=Math.hypot(horizontal,spec.topY-spec.baseY),rungs=clamp(Math.round(diagonal/(.62*mapSize.scale)),6,26);
+      for(let index=0;index<=rungs;index++){
+        const t=index/rungs,cx=spec.start.x+dx*t,cz=spec.start.z+dz*t,cy=railStartY+(railEndY-railStartY)*t;
+        group.add(makeLadderBeam({x:cx-tanX*half,y:cy,z:cz-tanZ*half},{x:cx+tanX*half,y:cy,z:cz+tanZ*half},.055*mapSize.scale,material));
+      }
+      scene.add(group);
+      const ladder={id:++structureSerial,kind:'ladder',side,team,mesh:group,start:spec.start,end:spec.end,baseY:spec.baseY,topY:spec.topY,width:spec.width,obstacleId:spec.obstacle.id,obstacle:spec.obstacle,wallKind:spec.obstacle.kind,cost,dead:false};
+      climbLadders.push(ladder);rebuildNavGrid();targetClock=0;if(isLocal(side)&&!free)toast((spec.obstacle.kind==='barricade'?'BARRICADE':'FORT WALL')+' LADDER BUILT · '+Math.round((spec.topY-spec.baseY)*10)/10+' HIGH');return ladder;
+    }
+    function armClimbLadder(){
+      const team=localTeam(),cost=structureManaCost(team,CLIMB_LADDER.cost);if(!battleStarted||paused||finished||team.eliminated)return false;if(team.mana<cost){toast('NOT ENOUGH MANA · NEED '+cost);return false;}if(climbLadders.filter(ladder=>!ladder.dead&&ladder.side===localSide).length>=CLIMB_LADDER.maxActive){toast('LADDER LIMIT REACHED · '+CLIMB_LADDER.maxActive);return false;}
+      clearCatapultSelection();armedSpell=null;armedUnit=null;armedOrder=null;armedTower=null;armedUpgrade=null;armedTransform=null;armedSell=false;armedBuild='ladder';const a=formationAnchor(localSide);showMarker(0xd6a66a,1.6,a.x,a.z);updateUI();toast('PLACE LADDER BESIDE A FORT WALL OR BARRICADE · HEIGHT IS AUTOMATIC');return true;
+    }
+    `+movementMarker);
+
+  // Open a fort-wall collision corridor only where a ladder exists.
+  once(
+    "function movementPointBlocked(x,z,clearance=.72,ignoreId=0,ignoreFortWalls=false){if(x<ARENA.minX+clearance",
+    "function movementPointBlocked(x,z,clearance=.72,ignoreId=0,ignoreFortWalls=false){const ladderPass=climbLadderAt(x,z,clearance*.32);if(x<ARENA.minX+clearance",
+    'ladder wall collision corridor'
+  );
+  once(
+    "if(obstacle.kind==='river-water'||obstacle.id===ignoreId||ignoreFortWalls&&obstacle.kind==='fort-wall'||!obstacleActive(obstacle))continue;",
+    "if(obstacle.kind==='river-water'||obstacle.id===ignoreId||ladderPass&&obstacle.id===ladderPass.ladder.obstacleId||ignoreFortWalls&&obstacle.kind==='fort-wall'||!obstacleActive(obstacle))continue;",
+    'ladder wall collision bypass'
+  );
+
+
+  // Keep the navigation grid and line-of-sight/path checks aware of the same
+  // narrow ladder opening. Some builds have both pointBlocked() and
+  // movementPointBlocked(), so patch pointBlocked when it is present.
+  const pointBlockedMarker="function pointBlocked(x,z,clearance=.72,ignoreId=0,ignoreFortWalls=false){";
+  if(text.includes(pointBlockedMarker)){
+    text=text.replace(pointBlockedMarker,pointBlockedMarker+"const ladderPass=climbLadderAt(x,z,clearance*.32);");
+    const pointSkip="if(obstacle.id===ignoreId||ignoreFortWalls&&obstacle.kind==='fort-wall'||!obstacleActive(obstacle))continue;";
+    if(text.includes(pointSkip))text=text.replace(pointSkip,"if(obstacle.id===ignoreId||ladderPass&&obstacle.id===ladderPass.ladder.obstacleId||ignoreFortWalls&&obstacle.kind==='fort-wall'||!obstacleActive(obstacle))continue;");
+  }
+
+  // Units follow the ladder's height instead of snapping from ground to wall top.
+  once(
+    "function unitSurfaceHeightAt(x,z,groundRoute=false,knownWater=undefined){",
+    "function unitSurfaceHeightAt(x,z,groundRoute=false,knownWater=undefined){const ladderSurface=climbLadderAt(x,z,.16*mapSize.scale);if(ladderSurface)return ladderSurface.height;",
+    'ladder climbing surface'
+  );
+  once(
+    "function fortRiseAllowed(oldX,oldZ,newX,newZ,groundRoute=false){const from=",
+    "function fortRiseAllowed(oldX,oldZ,newX,newZ,groundRoute=false){const oldLadder=climbLadderAt(oldX,oldZ,.32*mapSize.scale),newLadder=climbLadderAt(newX,newZ,.32*mapSize.scale);if(oldLadder||newLadder)return true;const from=",
+    'ladder vertical movement permission'
+  );
+
+  // Add a spawn/build button beside the other construction controls.
+  once(
+    `<button class="kc-action barricade" data-build="barricade">B · BARRICADE<small>'+BARRICADE.cost+' MANA · '+BARRICADE.cooldown+'s</small></button>`,
+    `<button class="kc-action barricade" data-build="barricade">B · BARRICADE<small>'+BARRICADE.cost+' MANA · '+BARRICADE.cooldown+'s</small></button><button class="kc-action barricade" data-build="ladder">LADDER<small>'+CLIMB_LADDER.cost+' MANA · AUTO HEIGHT</small></button>`,
+    'ladder HUD button'
+  );
+
+  // Button state + target description.
+  once(
+    "const buildButton=uiNode('[data-build=\"barricade\"]'),rotateButton=",
+    "const buildButton=uiNode('[data-build=\"barricade\"]'),ladderButton=uiNode('[data-build=\"ladder\"]'),rotateButton=",
+    'ladder UI state'
+  );
+  once(
+    "}if(rotateButton)rotateButton.disabled=!battleStarted||disabled||finished;",
+    "}if(ladderButton){const ladderCost=structureManaCost(player,CLIMB_LADDER.cost),ladderCount=climbLadders.filter(ladder=>!ladder.dead&&ladder.side===localSide).length;ladderButton.disabled=!battleStarted||disabled||player.mana<ladderCost||ladderCount>=CLIMB_LADDER.maxActive||finished;ladderButton.classList.toggle('targeting',armedBuild==='ladder');const ladderLabel=ladderButton.querySelector('small');if(ladderLabel)ladderLabel.textContent=ladderCost+' MANA · AUTO HEIGHT';}if(rotateButton)rotateButton.disabled=!battleStarted||disabled||finished;",
+    'ladder button updates'
+  );
+  once(
+    "else if(armedBuild)message='BUILD '+(barricadeRotation?'EAST / WEST':'NORTH / SOUTH')+' BARRICADE IN '+territoryLabel(localSide);",
+    "else if(armedBuild)message=armedBuild==='ladder'?'PLACE A LADDER BESIDE A FORT WALL OR BARRICADE · IT AUTO-SCALES TO THE HEIGHT':'BUILD '+(barricadeRotation?'EAST / WEST':'NORTH / SOUTH')+' BARRICADE IN '+territoryLabel(localSide);",
+    'ladder target note'
+  );
+
+  // Click binding.
+  once(
+    "root.querySelector('[data-build=\"barricade\"]').onclick=armBarricade;",
+    "root.querySelector('[data-build=\"barricade\"]').onclick=armBarricade;const ladderBuildButton=root.querySelector('[data-build=\"ladder\"]');if(ladderBuildButton)ladderBuildButton.onclick=armClimbLadder;",
+    'ladder button binding'
+  );
+
+  // Build confirmation. Ladders use their own online command and visual event.
+  once(
+    "if(armedBuild){if(isGuest)return guestCommand('barricade',{x:point.x,z:point.z,rotation:barricadeRotation});const success=!!buildBarricade(localSide,point,false,barricadeRotation);if(success){cancelTarget(false);if(isHost)sendOnlineSnapshot(true);}return success;}return false;",
+    "if(armedBuild){if(armedBuild==='ladder'){if(isGuest)return guestCommand('ladder',{x:point.x,z:point.z});const success=!!buildClimbLadder(localSide,point,false);if(success){cancelTarget(false);if(isHost){onlineSend({t:'visual',kind:'ladder',side:localSide,x:point.x,z:point.z});sendOnlineSnapshot(true);}}return success;}if(isGuest)return guestCommand('barricade',{x:point.x,z:point.z,rotation:barricadeRotation});const success=!!buildBarricade(localSide,point,false,barricadeRotation);if(success){cancelTarget(false);if(isHost)sendOnlineSnapshot(true);}return success;}return false;",
+    'ladder placement confirmation'
+  );
+
+  once(
+    "else if(battleStarted&&action==='barricade')success=!!buildBarricade(side,point,false,Number(command.rotation)||0);",
+    "else if(battleStarted&&action==='barricade')success=!!buildBarricade(side,point,false,Number(command.rotation)||0);else if(battleStarted&&action==='ladder'){success=!!buildClimbLadder(side,point,false);if(success)onlineSend({t:'visual',kind:'ladder',side,x:point.x,z:point.z});}",
+    'online ladder build command'
+  );
+
+  once(
+    "else if(message.kind==='weatherLightning')showWeatherLightning(point.x,point.z);",
+    "else if(message.kind==='weatherLightning')showWeatherLightning(point.x,point.z);else if(message.kind==='ladder')buildClimbLadder(String(message.side||localSide),point,true);",
+    'online ladder visual sync'
+  );
+
+  return text;
+}
+
+
+function patchFastHealersAndMages(text){
+  function change(oldValue,newValue,label){
+    if(!text.includes(oldValue))throw new Error('Could not add '+label+'.');
+    text=text.replace(oldValue,newValue);
+  }
+
+  // Healers: fast basic attacks / healing cadence. Lower rate = shorter cooldown.
+  change(
+    "Object.freeze({id:'medic',name:'FIELD MEDIC',role:'BALANCED HEALER',cost:20,hp:84,damage:5,speed:3.7,range:5.8,rate:1.25,color:0x6ddaa2,heal:24}),",
+    "Object.freeze({id:'medic',name:'FIELD MEDIC',role:'HEALER · ATTACK SPEED IMPROVES WITH LEVELS',cost:20,hp:84,damage:6,speed:3.7,range:5.8,rate:.65,color:0x6ddaa2,heal:24}),",
+    'rapid Field Medic attacks'
+  );
+  change(
+    "Object.freeze({id:'apprenticehealer',name:'APPRENTICE HEALER',role:'CHEAP FAST HEALER',cost:12,hp:54,damage:2,speed:4.15,range:5.1,rate:1.0,color:0x8be8b8,heal:13}),",
+    "Object.freeze({id:'apprenticehealer',name:'APPRENTICE HEALER',role:'CHEAP HEALER · LEVELS BOOST ATTACK SPEED',cost:12,hp:54,damage:4,speed:4.15,range:5.1,rate:.58,color:0x8be8b8,heal:13}),",
+    'rapid Apprentice Healer attacks'
+  );
+  change(
+    "Object.freeze({id:'highcleric',name:'HIGH CLERIC',role:'STRONG LONG-RANGE HEALER',cost:29,hp:102,damage:7,speed:3.35,range:7.1,rate:1.38,color:0xb4ffd6,heal:38})",
+    "Object.freeze({id:'highcleric',name:'HIGH CLERIC',role:'STRONG HEALER · LEVELS BOOST ATTACK SPEED',cost:29,hp:102,damage:10,speed:3.35,range:7.1,rate:.72,color:0xb4ffd6,heal:38})",
+    'rapid High Cleric attacks'
+  );
+
+  // Healers gain attack speed much faster as they level. Normal units keep the original 0.7%/level improvement; healers get ~5.5%/level after evolution.
+  change(
+    "unit.rate=Math.max(.16,unit.rate*.993);unit.heal*=1.04;",
+    "unit.rate=Math.max(.16,unit.rate*(['medic','apprenticehealer','highcleric'].includes(unit.type)?.945:.993));unit.heal*=1.04;",
+    'healer attack-speed growth from leveling'
+  );
+
+  // Mage family: very short attack cooldowns with much larger, harder-hitting splash.
+  change(
+    "Object.freeze({id:'mage',name:'BATTLE MAGE',role:'MID MAGIC · SPLASH + AIR',cost:25,hp:68,damage:17,speed:3.5,range:7.6,rate:1.42,color:0xa985ea,splash:3.8,canHitAir:true}),",
+    "Object.freeze({id:'mage',name:'BATTLE MAGE',role:'RAPID MAGIC · LARGE SPLASH + AIR',cost:25,hp:68,damage:27,speed:3.5,range:7.6,rate:.34,color:0xa985ea,splash:7.2,canHitAir:true}),",
+    'rapid Battle Mage splash attacks'
+  );
+  change(
+    "Object.freeze({id:'novicemage',name:'NOVICE MAGE',role:'CHEAP MAGIC · LIGHT SPLASH + AIR',cost:11,hp:44,damage:7,speed:3.9,range:7.15,rate:1.08,color:0x7bc8ff,splash:1.5,canHitAir:true}),",
+    "Object.freeze({id:'novicemage',name:'NOVICE MAGE',role:'RAPID MAGIC · LARGE SPLASH + AIR',cost:11,hp:44,damage:13,speed:3.9,range:7.15,rate:.42,color:0x7bc8ff,splash:5.4,canHitAir:true}),",
+    'rapid Novice Mage splash attacks'
+  );
+  change(
+    "Object.freeze({id:'adeptmage',name:'ADEPT MAGE',role:'FAST MAGIC · MEDIUM SPLASH + AIR',cost:18,hp:56,damage:11,speed:3.7,range:7.35,rate:1.22,color:0x80e1bf,splash:2.5,canHitAir:true}),",
+    "Object.freeze({id:'adeptmage',name:'ADEPT MAGE',role:'VERY FAST MAGIC · LARGE SPLASH + AIR',cost:18,hp:56,damage:20,speed:3.7,range:7.35,rate:.36,color:0x80e1bf,splash:6.4,canHitAir:true}),",
+    'rapid Adept Mage splash attacks'
+  );
+  change(
+    "Object.freeze({id:'archmage',name:'ARCHMAGE',role:'HEAVY MAGIC · LARGE SPLASH + AIR',cost:33,hp:82,damage:25,speed:3.25,range:8.8,rate:1.55,color:0xd393ff,splash:5.0,canHitAir:true}),",
+    "Object.freeze({id:'archmage',name:'ARCHMAGE',role:'RAPID HEAVY MAGIC · HUGE SPLASH + AIR',cost:33,hp:82,damage:40,speed:3.25,range:8.8,rate:.40,color:0xd393ff,splash:8.5,canHitAir:true}),",
+    'rapid Archmage splash attacks'
+  );
+
+  return text;
+}
+
+
+function patchMaskingAndComboSafety(text){
+  function exact(oldValue,newValue,label){
+    if(!text.includes(oldValue)){console.warn('Kingdom Clash patch skipped: '+label);return false;}
+    text=text.replace(oldValue,newValue);return true;
+  }
+  function rx(pattern,replacement,label){
+    if(!pattern.test(text)){console.warn('Kingdom Clash patch skipped: '+label);return false;}
+    text=text.replace(pattern,replacement);return true;
+  }
+
+  // ------------------------------------------------------------
+  // COMBO SAFETY: direct attacks can keep their normal rules, but
+  // secondary elemental reactions/statuses never hurt the source side.
+  // ------------------------------------------------------------
+  rx(
+    /function setElementStatus\(target,key,duration,sourceSide,power=1\)\{\s*if\(!target\|\|target\.dead\)return null;/,
+    "function setElementStatus(target,key,duration,sourceSide,power=1){\n      if(!target||target.dead||sourceSide&&(!target.side||target.side===sourceSide))return null;",
+    'friendly-safe elemental status application'
+  );
+  rx(
+    /function applyReaction\(target,reaction,incoming,sourceSide,sourceObject,baseDamage\)\{\s*if\(!target\|\|!reaction\)return\{bonus:1,critical:false\};/,
+    "function applyReaction(target,reaction,incoming,sourceSide,sourceObject,baseDamage){\n      if(!target||!reaction)return{bonus:1,critical:false};sourceSide=sourceSide||(sourceObject&&sourceObject.side)||null;",
+    'reaction source-side ownership'
+  );
+  rx(
+    /function dealDamage\(target,amount,sourceSide=null,damageType=null,sourceObject=null,elementMeta=null\)\{\s*if\(!target\|\|target\.dead\)return;/,
+    "function dealDamage(target,amount,sourceSide=null,damageType=null,sourceObject=null,elementMeta=null){\n      if(!target||target.dead)return;const comboSourceSide=sourceSide||(sourceObject&&sourceObject.side)||null;if((damageType==='element-reaction'||damageType==='element-dot')&&(!comboSourceSide||!target.side||target.side===comboSourceSide))return;",
+    'friendly-safe combo damage'
+  );
+
+  // ------------------------------------------------------------
+  // MASKING FIELD BALANCE + UPGRADE PATHS.
+  // ------------------------------------------------------------
+  exact(
+    "maskingField:{name:'MASKING FIELD',cost:50,cooldown:8,color:0x596681,radius:8.5,structure:'maskingField'}",
+    "maskingField:{name:'MASKING FIELD',cost:30,cooldown:4,color:0x596681,radius:8.5,structure:'maskingField'}",
+    'cheaper faster Masking Field'
+  );
+
+  const torchDefs="const TORCH_UPGRADES=Object.freeze({power:Object.freeze({name:'BEACON FLAME',baseCost:20,lightRadiusAdd:2.5,hpAdd:18}),special:Object.freeze({name:'WIDE LANTERN',baseCost:22,lightRadiusAdd:3.5,hpAdd:15})});";
+  if(text.includes(torchDefs)){
+    text=text.replace(torchDefs,torchDefs+"\n  const MASKING_FIELD_UPGRADES=Object.freeze({power:Object.freeze({name:'DEEP VEIL',baseCost:15,hpAdd:40,fieldRadiusAdd:0}),special:Object.freeze({name:'WIDE VEIL',baseCost:15,hpAdd:18,fieldRadiusAdd:1.5})});");
+  }else if(!text.includes('const MASKING_FIELD_UPGRADES=')){
+    const sellMarker="  const TOWER_SELL=";
+    if(text.includes(sellMarker))text=text.replace(sellMarker,"  const MASKING_FIELD_UPGRADES=Object.freeze({power:Object.freeze({name:'DEEP VEIL',baseCost:15,hpAdd:40,fieldRadiusAdd:0}),special:Object.freeze({name:'WIDE VEIL',baseCost:15,hpAdd:18,fieldRadiusAdd:1.5})});\n"+sellMarker);
+    else console.warn('Kingdom Clash patch skipped: Masking Field power and range upgrade definitions');
+  }
+
+  if(!text.includes('const MASKING_FIELD_UPGRADES=')){const marker="  const TOWER_SELL=";if(text.includes(marker))text=text.replace(marker,"  const MASKING_FIELD_UPGRADES=Object.freeze({power:Object.freeze({name:'DEEP VEIL',baseCost:15,hpAdd:40,fieldRadiusAdd:0}),special:Object.freeze({name:'WIDE VEIL',baseCost:15,hpAdd:18,fieldRadiusAdd:1.5})});\n"+marker);}
+
+  // RANGE upgrades store their live radius when applied. Until then, masking uses the base radius.
+
+  // Unit masking uses the upgraded field radius rather than the immutable base definition.
+  exact(
+    "const radiusSq=d.fieldRadius*d.fieldRadius;return team.spellStructures.some(field=>!field.dead&&field.type==='maskingField'&&(field.falling||0)<=0&&distanceSq(field.mesh.position,unit.mesh.position)<=radiusSq);}",
+    "return team.spellStructures.some(field=>{if(field.dead||field.type!=='maskingField'||(field.falling||0)>0)return false;const radius=field.fieldRadius||d.fieldRadius;return distanceSq(field.mesh.position,unit.mesh.position)<=radius*radius;});}\n    function structureMaskedFrom(viewerSide,structure){return!!(structure&&!structure.dead&&structure.kind==='spellStructure'&&structure.type==='maskingField'&&structure.side!==viewerSide&&(structure.falling||0)<=0);}",
+    'upgraded masking radius and self masking helper'
+  );
+
+  // A deployed Masking Field masks its own model from enemy players.
+  exact(
+    "for(const side of teamSides){const team=teams[side];for(const object of team.spellStructures){if(object.dead)continue;const d=SPELL_STRUCTURE_DEFS[object.type],baseHeight=",
+    "for(const side of teamSides){const team=teams[side];for(const object of team.spellStructures){if(object.dead)continue;if(object.type==='maskingField')object.mesh.visible=!structureMaskedFrom(localSide,object);const d=SPELL_STRUCTURE_DEFS[object.type],baseHeight=",
+    'Masking Field self visibility masking'
+  );
+
+  // RANGE path visibly grows the field ring along with its gameplay radius.
+  exact(
+    "const pulse=.94+Math.sin(elapsed*2.4+object.id)*.06;object.fieldRing.scale.set(pulse,pulse,pulse);",
+    "const pulse=.94+Math.sin(elapsed*2.4+object.id)*.06,fieldScale=object.type==='maskingField'?(object.fieldRadius||d.fieldRadius)/d.fieldRadius:1;object.fieldRing.scale.set(pulse*fieldScale,pulse*fieldScale,pulse*fieldScale);",
+    'Masking Field upgraded range ring'
+  );
+
+  // Enemy AI cannot deliberately target a masking field that is masking itself.
+  exact(
+    "for(const structure of activeStructures[enemySide])if(!structure.dead)callback(structure);",
+    "for(const structure of activeStructures[enemySide])if(!structure.dead&&!structureMaskedFrom(side,structure))callback(structure);",
+    'self-masked field enemy structure iteration'
+  );
+  exact(
+    "if(!structure||structure.dead||predicate&&!predicate(structure))continue;",
+    "if(!structure||structure.dead||structureMaskedFrom(side,structure)||predicate&&!predicate(structure))continue;",
+    'self-masked field nearest enemy targeting'
+  );
+  exact(
+    "function enemyStructures(side){return enemySides(side).flatMap(enemySide=>activeStructures[enemySide]);}",
+    "function enemyStructures(side){return enemySides(side).flatMap(enemySide=>activeStructures[enemySide].filter(structure=>!structureMaskedFrom(side,structure)));}",
+    'self-masked field enemy structure list'
+  );
+  exact(
+    "function canUnitAttack(u,target){if(!target||target.dead||target.side&&target.side===u.side)return false;if(target.kind!=='unit')return true;",
+    "function canUnitAttack(u,target){if(!target||target.dead||target.side&&target.side===u.side||structureMaskedFrom(u.side,target))return false;if(target.kind!=='unit')return true;",
+    'self-masked field attack protection'
+  );
+
+  // Let the existing POWER / RANGE buttons select either a Torch or Masking Field.
+  exact(
+    "if(object.dead||object.type!=='torch')continue;",
+    "if(object.dead||!['torch','maskingField'].includes(object.type))continue;",
+    'Masking Field upgrade selection'
+  );
+
+  rx(
+    /function torchUpgradeCost\(branch,nextLevel\)\{[\s\S]*?\}\n    function applyTorchUpgrade\(torch,branch,targetLevel=null\)\{[\s\S]*?return torch;\}/,
+`function torchUpgradeCost(branch,nextLevel,type='torch'){const upgrades=type==='maskingField'?MASKING_FIELD_UPGRADES:TORCH_UPGRADES,upgrade=upgrades[branch],level=clamp(Math.round(nextLevel||1),1,TORCH_MAX_LEVEL);return upgrade?Math.round((upgrade.baseCost+(level-1)*10)/5)*5:Infinity;}
+    function applyTorchUpgrade(object,branch,targetLevel=null){if(!object||object.dead||!['torch','maskingField'].includes(object.type)||!UPGRADE_KEYS.includes(branch)||object.upgrade&&object.upgrade!==branch)return false;const current=Math.round(object.upgradeLevel||0),next=targetLevel==null?current+1:clamp(Math.round(targetLevel),0,TORCH_MAX_LEVEL);if(next<=current||next>TORCH_MAX_LEVEL)return false;const ratio=object.hp/Math.max(1,object.maxHp),structureMult=(object.team.heroDef.structureHp||1)*(object.team.equipmentBonuses.structureHp||1)*(object.team.powerStats.structureHp||1);object.upgrade=branch;object.upgradeLevel=next;
+      if(object.type==='maskingField'){const d=SPELL_STRUCTURE_DEFS.maskingField,upgrade=MASKING_FIELD_UPGRADES[branch];object.upgradeName=upgrade.name;object.fieldRadius=d.fieldRadius+(upgrade.fieldRadiusAdd||0)*next;object.maxHp=Math.max(d.hp,Math.round(d.hp*structureMult+(upgrade.hpAdd||0)*next));object.hp=Math.max(1,Math.min(object.maxHp,object.maxHp*ratio));if(object.fieldRing){const scale=object.fieldRadius/d.fieldRadius;object.fieldRing.scale.set(scale,scale,scale);}return object;}
+      const d=SPELL_STRUCTURE_DEFS.torch,upgrade=TORCH_UPGRADES[branch];object.upgradeName=upgrade.name;object.lightRadius=d.lightRadius+upgrade.lightRadiusAdd*next;object.maxHp=Math.max(40,Math.round(d.hp*structureMult+upgrade.hpAdd*next));object.hp=Math.max(1,Math.min(object.maxHp,object.maxHp*ratio));object.mesh.scale.setScalar(1+next*.055);return object;}`,
+    'shared Torch and Masking Field upgrades'
+  );
+
+  rx(
+    /function upgradeTorch\(side,branch,point,free=false,networkSync=false,forcedTorch=null\)\{[\s\S]*?return torch;\}/,
+`function upgradeTorch(side,branch,point,free=false,networkSync=false,forcedTorch=null){const team=teams[side],object=forcedTorch||nearestUpgradeableTorch(side,point);if(!object){if(isLocal(side)&&!networkSync)toast('SELECT A FRIENDLY TORCH OR MASKING FIELD');return false;}const label=object.type==='maskingField'?'MASKING FIELD':'TORCH';if(object.upgrade&&object.upgrade!==branch){if(isLocal(side)&&!networkSync)toast('THAT '+label+' IS LOCKED TO THE '+(object.upgrade==='special'?'RANGE':object.upgrade.toUpperCase())+' PATH');return false;}const next=(object.upgradeLevel||0)+1;if(next>TORCH_MAX_LEVEL){if(isLocal(side)&&!networkSync)toast('THAT '+label+' IS FULLY UPGRADED');return false;}const cost=structureManaCost(team,torchUpgradeCost(branch,next,object.type));if(!free&&team.mana<cost){if(isLocal(side)&&!networkSync)toast(label+' LEVEL '+next+' NEEDS '+cost+' MANA');return false;}if(!free)team.mana-=cost;if(!applyTorchUpgrade(object,branch))return false;object.investedMana=(object.investedMana||SPELL_DEFS[object.type].cost)+cost;if(isLocal(side)&&!networkSync)toast(object.upgradeName+' · '+label+' LEVEL '+object.upgradeLevel+'/'+TORCH_MAX_LEVEL+' · '+cost+' MANA');return object;}`,
+    'Masking Field upgrade execution'
+  );
+
+  // Upgrade costs and availability in local + guest UI use the field's own path table.
+  text=text.replaceAll("target.kind==='spellStructure'?torchUpgradeCost(branch,next):miniTowerUpgradeCost", "target.kind==='spellStructure'?torchUpgradeCost(branch,next,target.type):miniTowerUpgradeCost");
+  exact(
+    "affordableTorch=player.spellStructures.some(object=>!object.dead&&object.type==='torch'&&(!object.upgrade||object.upgrade===branch)&&(object.upgradeLevel||0)<TORCH_MAX_LEVEL&&player.mana>=structureManaCost(player,torchUpgradeCost(branch,(object.upgradeLevel||0)+1)));",
+    "affordableTorch=player.spellStructures.some(object=>!object.dead&&['torch','maskingField'].includes(object.type)&&(!object.upgrade||object.upgrade===branch)&&(object.upgradeLevel||0)<TORCH_MAX_LEVEL&&player.mana>=structureManaCost(player,torchUpgradeCost(branch,(object.upgradeLevel||0)+1,object.type)));",
+    'Masking Field upgrade button availability'
+  );
+  text=text.replaceAll("SELECT A FRIENDLY SHOOTING POST, MINI TOWER, OR TORCH", "SELECT A FRIENDLY SHOOTING POST, MINI TOWER, TORCH, OR MASKING FIELD");
+  text=text.replaceAll("SELECT A CLIMBABLE SHOOTING POST, MINI TOWER, OR TORCH FOR ", "SELECT A CLIMBABLE SHOOTING POST, MINI TOWER, TORCH, OR MASKING FIELD FOR ");
+  text=text.replaceAll("selectedUpgradeable.kind==='spellStructure'?'TORCH':'TOWER'", "selectedUpgradeable.kind==='spellStructure'?(SPELL_STRUCTURE_DEFS[selectedUpgradeable.type]&&SPELL_STRUCTURE_DEFS[selectedUpgradeable.type].name||'FIELD'):'TOWER'");
+
+  // Preserve Masking Field upgrades over online snapshots just like Torch upgrades.
+  text=text.replaceAll("if(type==='torch'&&upgrade&&upgradeLevel>(object.upgradeLevel||0))applyTorchUpgrade(object,upgrade,upgradeLevel);", "if((type==='torch'||type==='maskingField')&&upgrade&&upgradeLevel>(object.upgradeLevel||0))applyTorchUpgrade(object,upgrade,upgradeLevel);");
+  text=text.replaceAll("if(type==='torch')object.investedMana=Math.max(SPELL_DEFS.torch.cost,Math.round(Number(snap[10])||SPELL_DEFS.torch.cost));", "if(type==='torch'||type==='maskingField')object.investedMana=Math.max(SPELL_DEFS[type].cost,Math.round(Number(snap[10])||SPELL_DEFS[type].cost));");
+
+  return text;
+}
+
+
+function patchMaskingFreezeFix(text){
+  const replaceIf=(oldValue,newValue)=>{if(text.includes(oldValue))text=text.replace(oldValue,newValue);};
+
+  // Terrain helpers are invoked by buildArena before the original late const declaration executes.
+  // Move the cache initialization to the start of createBattle to avoid the temporal-dead-zone ReferenceError.
+  if(text.includes("    const terrainRockMaterialCache=new Map();")){
+    text=text.replace("    const terrainRockMaterialCache=new Map();","");
+    text=text.replace("  function createBattle(root){","  function createBattle(root){\n    const terrainRockMaterialCache=new Map();",1);
+  }
+
+  // Avoid mutating an entire Masking Field group every frame. Set enemy visibility once at construction.
+  replaceIf(
+    "for(const side of teamSides){const team=teams[side];for(const object of team.spellStructures){if(object.dead)continue;if(object.type==='maskingField')object.mesh.visible=!structureMaskedFrom(localSide,object);const d=SPELL_STRUCTURE_DEFS[object.type],baseHeight=",
+    "for(const side of teamSides){const team=teams[side];for(const object of team.spellStructures){if(object.dead)continue;const d=SPELL_STRUCTURE_DEFS[object.type],baseHeight="
+  );
+  replaceIf(
+    "scene.add(g);const spellKey=SPELL_KEYS.find(key=>SPELL_DEFS[key].structure===type),object=",
+    "scene.add(g);if(type==='maskingField'&&side!==localSide)g.visible=false;const spellKey=SPELL_KEYS.find(key=>SPELL_DEFS[key].structure===type),object="
+  );
+
+  // A unit whose current target becomes masked must release it immediately and ask for a new target.
+  text=text.replaceAll(
+    "if(!canUnitAttack(u,target))continue;",
+    "if(!canUnitAttack(u,target)){u.target=null;u.flowKey=-1;u.flowField=null;u.nextDecisionAt=0;continue;}"
+  );
+
+  // Target-stickiness must never re-select a unit that is now hidden by a Masking Field.
+  replaceIf(
+    "if(previous&&next&&previous!==next&&!previous.dead&&previous.kind==='unit'&&next.kind==='unit'&&!next.elite&&",
+    "if(previous&&next&&previous!==next&&!previous.dead&&canUnitAttack(u,previous)&&previous.kind==='unit'&&next.kind==='unit'&&!next.elite&&"
+  );
+
+  return text;
+}
+
+
+function patchWatchTowerBeamFreezeFix(text){
+  const replaceIf=(oldValue,newValue,label)=>{
+    if(text.includes(newValue))return;
+    if(!text.includes(oldValue)){console.warn('Kingdom Clash patch skipped: '+label);return;}
+    text=text.replace(oldValue,newValue);
+  };
+
+  // A watch beam can outlive the tower object that created it. Treat a missing
+  // tower as an expired beam instead of dereferencing beam.tower.dead.
+  replaceIf(
+    "function retargetActiveWatchBeam(point){const beam=activeWatchBeam;if(!beam||beam.life<=0||beam.tower.dead)return false;",
+    "function retargetActiveWatchBeam(point){const beam=activeWatchBeam;if(!beam||beam.life<=0||!beam.tower||beam.tower.dead)return false;",
+    'watch-beam manual retarget null tower guard'
+  );
+  replaceIf(
+    "function dragWatchBeamToTarget(beam,target,dt){if(!beam||!target||target.dead)return false;",
+    "function dragWatchBeamToTarget(beam,target,dt){if(!beam||!beam.tower||!target||target.dead)return false;",
+    'watch-beam tracking null tower guard'
+  );
+  replaceIf(
+    "function updateWatchTowerBeams(dt){for(let index=watchTowerBeams.length-1;index>=0;index--){const beam=watchTowerBeams[index];if(beam.tower.dead)beam.life=0;",
+    "function updateWatchTowerBeams(dt){for(let index=watchTowerBeams.length-1;index>=0;index--){const beam=watchTowerBeams[index];if(!beam||!beam.tower){if(activeWatchBeam===beam)activeWatchBeam=null;if(beam){if(beam.core)beam.core.visible=false;if(beam.glow)beam.glow.visible=false;if(beam.impactGlow)beam.impactGlow.visible=false;}watchTowerBeams.splice(index,1);continue;}if(beam.tower.dead)beam.life=0;",
+    'watch-beam update null tower cleanup'
+  );
+  return text;
+}
+
+
+function patchFortStairsNoSideCollision(text){
+  const marker="function fortRiseAllowed(oldX,oldZ,newX,newZ,groundRoute=false){const oldLadder=climbLadderAt(oldX,oldZ,.32*mapSize.scale),newLadder=climbLadderAt(newX,newZ,.32*mapSize.scale);if(oldLadder||newLadder)return true;const from=";
+  if(!text.includes(marker)){
+    console.warn('Kingdom Clash patch skipped: fort stair side-collision release');
+    return text;
+  }
+  const replacement=`function fortStairSidePassAt(x,z){
+      const scale=mapSize.scale;
+      for(const layout of fortLayouts){
+        if(!layout)continue;
+        if(layout.customFortEnabled){
+          const info=customFortCellInfoAt(layout,x,z);
+          if(info&&info.type&&info.type.startsWith('stairs'))return true;
+        }
+        if(Array.isArray(layout.accessStairs)&&layout.accessStairs.length){
+          const local=fortLocal(layout,x,z);
+          for(const spec of layout.accessStairs){
+            if(!spec)continue;
+            const df=local.forward-spec.startForward,dl=local.lateral-spec.startLateral,along=df*spec.dirForward+dl*spec.dirLateral,across=-df*spec.dirLateral+dl*spec.dirForward;
+            if(along>=-.65*scale&&along<=spec.length+.65*scale&&Math.abs(across)<=spec.width*.5+.75*scale)return true;
+          }
+        }
+      }
+      return false;
+    }
+    function fortRiseAllowed(oldX,oldZ,newX,newZ,groundRoute=false){const oldLadder=climbLadderAt(oldX,oldZ,.32*mapSize.scale),newLadder=climbLadderAt(newX,newZ,.32*mapSize.scale);if(oldLadder||newLadder||fortStairSidePassAt(oldX,oldZ)||fortStairSidePassAt(newX,newZ))return true;const from=`;
+  return text.replace(marker,replacement);
+}
+
+
+function patchHugeCombosVisible(text){
+  function replaceOne(oldValue,newValue,label){
+    if(!text.includes(oldValue)){console.warn('Kingdom Clash combo-visual patch skipped: '+label);return false;}
+    text=text.replace(oldValue,newValue);
+    return true;
+  }
+
+  replaceOne(
+    "#kcRoot .kc-damage-float .reaction{display:block;margin-top:4px;font-size:8px;color:#fff;text-align:center}",
+    "#kcRoot .kc-damage-float .reaction{display:block;margin-top:5px;font-size:14px;font-weight:1000;letter-spacing:1px;color:#fff;text-align:center;text-shadow:0 2px 0 #000,0 0 8px currentColor,0 0 12px #000}",
+    'larger reaction label styling'
+  );
+
+  replaceOne(
+    "node.className='kc-damage-float'+(critical?' critical':'')+(weatherDamage?' weather':'');let damageFontSize;if(weatherDamage){damageFontSize=amount<.5?7:amount<1?8:amount<2?9:amount<4?10:amount<8?12:amount<15?14:amount<30?17:21;}else{damageFontSize=amount<5?12:amount<10?14:amount<20?17:amount<35?20:amount<55?24:amount<80?28:amount<120?33:amount<180?38:44;if(critical)damageFontSize=Math.min(68,Math.round(damageFontSize*1.65+10));}node.style.fontSize=damageFontSize+'px';node.style.left=",
+    "node.className='kc-damage-float'+(critical?' critical':'')+(weatherDamage?' weather':'');let damageFontSize;if(weatherDamage){damageFontSize=amount<.5?7:amount<1?8:amount<2?9:amount<4?10:amount<8?12:amount<15?14:amount<30?17:21;}else if(reaction){damageFontSize=critical?58:44;}else{damageFontSize=amount<5?12:amount<10?14:amount<20?17:amount<35?20:amount<55?24:amount<80?28:amount<120?33:amount<180?38:44;if(critical)damageFontSize=Math.min(68,Math.round(damageFontSize*1.65+10));}node.style.fontSize=damageFontSize+'px';node.style.left=",
+    'reaction damage number size'
+  );
+
+  replaceOne(
+    "node.style.color=def.css;node.innerHTML=(critical?'✦ ':'')+Math.max(1,Math.round(amount))+(reaction?'<span class=\"reaction\">'+escapeHtml(reaction)+'</span>':'');damageLayer.appendChild(node);damageFloatNodes.push(node);while(damageFloatNodes.length>110){const old=damageFloatNodes.shift();old&&old.remove();}setTimeout(()=>{const at=damageFloatNodes.indexOf(node);if(at>=0)damageFloatNodes.splice(at,1);node.remove();},820);return true;",
+    "node.style.color=def.css;if(reaction&&!weatherDamage){node.style.fontWeight='1000';node.style.zIndex='35';node.style.filter='drop-shadow(0 0 10px currentColor) drop-shadow(0 0 18px rgba(255,255,255,.45))';}node.innerHTML=(critical?'✦ ':'')+Math.max(1,Math.round(amount))+(reaction?'<span class=\"reaction\">'+escapeHtml(reaction)+'</span>':'');damageLayer.appendChild(node);damageFloatNodes.push(node);while(damageFloatNodes.length>110){const old=damageFloatNodes.shift();old&&old.remove();}setTimeout(()=>{const at=damageFloatNodes.indexOf(node);if(at>=0)damageFloatNodes.splice(at,1);node.remove();},reaction&&!weatherDamage?1150:820);return true;",
+    'reaction damage number glow'
+  );
+
+  replaceOne(
+    "#kcRoot .kc-status-icon{position:absolute;display:block;transform:translate(-50%,-100%);width:34px;height:auto;max-width:none;pointer-events:none;",
+    "#kcRoot .kc-status-icon{position:absolute;display:block;transform:translate(-50%,-100%);width:62px;height:auto;max-width:none;pointer-events:none;",
+    'larger status icon css'
+  );
+  replaceOne(
+    "const large=unit.type==='ragegiant'||unit.type==='golem',size=large?44:34;node.style.width=size+'px';",
+    "const large=unit.type==='ragegiant'||unit.type==='golem',size=large?78:62;node.style.width=size+'px';",
+    'larger status icon runtime size'
+  );
+
+  replaceOne(
+    "function reactionBurst(target,element,reaction,size=.72){if(target&&target.mesh){addBurst(target.mesh.position.x,(target.mesh.position.y||0)+2,target.mesh.position.z,ELEMENT_DEFS[normalizeElement(element)].color,size);}}",
+    "function reactionBurst(target,element,reaction,size=.72){if(target&&target.mesh){const color=ELEMENT_DEFS[normalizeElement(element)].color,x=target.mesh.position.x,y=(target.mesh.position.y||0)+2,z=target.mesh.position.z,big=/BOMBED|TEMPEST|SHATTERED|HALO|SMASHED|STEAMED|MAVA|SCORCHED|OVERCHARGED|ECLIPSED/.test(String(reaction||''));addBurst(x,y,z,color,size*(big?1.4:1));addBurst(x,y+.35,z,color,size*(big?2.1:1.35));addBurst(x,y+.1,z,color,size*(big?2.8:1.65));}}",
+    'triple-burst combo explosions'
+  );
+
+  replaceOne(
+    "if(!target||!target.mesh)return;const radius=3.8*mapSize.scale,geometry=new THREE.CircleGeometry(radius,22),material=new THREE.MeshBasicMaterial({color:0xff7138,transparent:true,opacity:.5,depthWrite:false,side:THREE.DoubleSide}),mesh=new THREE.Mesh(geometry,material),x=target.mesh.position.x,z=target.mesh.position.z;mesh.rotation.x=-Math.PI/2;mesh.position.set(x,fortSurfaceHeightAt(x,z)+.09,z);scene.add(mesh);mavaPools.push({mesh,geometry,material,x,z,radius,until:elapsed+10,nextTick:elapsed+.45,sourceSide,power:Math.max(4,power*.24)});return mesh;",
+    "if(!target||!target.mesh)return;const radius=5.1*mapSize.scale,geometry=new THREE.CircleGeometry(radius,26),material=new THREE.MeshBasicMaterial({color:0xff7138,transparent:true,opacity:.58,depthWrite:false,side:THREE.DoubleSide}),mesh=new THREE.Mesh(geometry,material),x=target.mesh.position.x,z=target.mesh.position.z;mesh.rotation.x=-Math.PI/2;mesh.position.set(x,fortSurfaceHeightAt(x,z)+.09,z);scene.add(mesh);mavaPools.push({mesh,geometry,material,x,z,radius,until:elapsed+12.5,nextTick:elapsed+.35,sourceSide,power:Math.max(7,power*.42)});reactionBurst(target,'fire','MAVA',1.55);return mesh;",
+    'stronger Mava pool'
+  );
+
+  const reactionReplacements=[
+    ["if(reaction==='ELECTRIFIED'){setElementStatus(target,'electrified',4.5,sourceSide,Math.max(3,baseDamage*.16));}","if(reaction==='ELECTRIFIED'){setElementStatus(target,'electrified',6,sourceSide,Math.max(6,baseDamage*.28));bonus=1.35;}",'stronger ELECTRIFIED'],
+    ["else if(reaction==='BURNED'){setElementStatus(target,'burned',5.5,sourceSide,Math.max(3,baseDamage*.13));}","else if(reaction==='BURNED'){setElementStatus(target,'burned',7.5,sourceSide,Math.max(6,baseDamage*.24));bonus=1.32;}",'stronger BURNED'],
+    ["else if(reaction==='POISONED'){setElementStatus(target,'poisoned',8,sourceSide,Math.max(2.5,baseDamage*.1));}","else if(reaction==='POISONED'){setElementStatus(target,'poisoned',10,sourceSide,Math.max(5,baseDamage*.18));bonus=1.28;}",'stronger POISONED'],
+    ["else if(reaction==='FROSTBITTEN'){setElementStatus(target,'frostbitten',4.5,sourceSide,1);target.stun=Math.max(target.stun||0,2.1);bonus=1.9;critical=true;}","else if(reaction==='FROSTBITTEN'){setElementStatus(target,'frostbitten',6,sourceSide,1);target.stun=Math.max(target.stun||0,3.1);bonus=2.6;critical=true;}",'stronger FROSTBITTEN'],
+    ["else if(reaction==='CURSED'){setElementStatus(target,'cursed',7.5,sourceSide,Math.max(2.5,baseDamage*.085));}","else if(reaction==='CURSED'){setElementStatus(target,'cursed',9.5,sourceSide,Math.max(4,baseDamage*.14));bonus=1.25;}",'stronger CURSED'],
+    ["else if(reaction==='BLINDED'){setElementStatus(target,'blinded',5,sourceSide,1);}","else if(reaction==='BLINDED'){setElementStatus(target,'blinded',6.5,sourceSide,1);bonus=1.18;}",'stronger BLINDED'],
+    ["else if(reaction==='MAVA'){target._reactionIcon={key:'mava',until:elapsed+1.2};createMavaPool(target,sourceSide,baseDamage);bonus=1.18;}","else if(reaction==='MAVA'){target._reactionIcon={key:'mava',until:elapsed+1.7};createMavaPool(target,sourceSide,baseDamage);bonus=1.45;critical=true;}",'stronger MAVA'],
+    ["else if(reaction==='BOMBED'){bonus=1.4;target._reactionIcon={key:'bombed',until:elapsed+1.15};const radius=4.4*mapSize.scale;if(target.side&&spatial[target.side])forEachSpatialUnit(target.side,target.mesh.position,radius,unit=>{if(unit!==target&&!unit.dead){unit._reactionIcon={key:'bombed',until:elapsed+1.15};dealDamage(unit,Math.max(5,baseDamage*.62),sourceSide,'element-reaction',sourceObject,{element:'fire',skipReactions:true,noMatchup:true});}});reactionBurst(target,'fire','BOMBED',1.3);}","else if(reaction==='BOMBED'){bonus=2.1;critical=true;target._reactionIcon={key:'bombed',until:elapsed+1.7};const radius=5.6*mapSize.scale;if(target.side&&spatial[target.side])forEachSpatialUnit(target.side,target.mesh.position,radius,unit=>{if(unit!==target&&!unit.dead){unit._reactionIcon={key:'bombed',until:elapsed+1.7};dealDamage(unit,Math.max(10,baseDamage*.95),sourceSide,'element-reaction',sourceObject,{element:'fire',skipReactions:true,noMatchup:true});}});reactionBurst(target,'fire','BOMBED',2.1);}",'stronger BOMBED'],
+    ["else if(reaction==='STEAMED'){setElementStatus(target,'blinded',3.4,sourceSide,1);setElementStatus(target,'burned',3.2,sourceSide,Math.max(2.4,baseDamage*.08));bonus=1.12;}","else if(reaction==='STEAMED'){setElementStatus(target,'blinded',4.5,sourceSide,1);setElementStatus(target,'burned',4.6,sourceSide,Math.max(5,baseDamage*.14));bonus=1.55;critical=true;}",'stronger STEAMED'],
+    ["else if(reaction==='TEMPEST'){setElementStatus(target,'electrified',4.2,sourceSide,Math.max(3,baseDamage*.12));setElementStatus(target,'frostbitten',3.2,sourceSide,1);target.stun=Math.max(target.stun||0,1.1);bonus=1.22;critical=true;}","else if(reaction==='TEMPEST'){setElementStatus(target,'electrified',6.2,sourceSide,Math.max(6,baseDamage*.24));setElementStatus(target,'frostbitten',4.8,sourceSide,1);target.stun=Math.max(target.stun||0,2.3);bonus=1.95;critical=true;}",'stronger TEMPEST'],
+    ["else if(reaction==='SHATTERED'){setElementStatus(target,'frostbitten',3,sourceSide,1);bonus=1.34;critical=true;}","else if(reaction==='SHATTERED'){setElementStatus(target,'frostbitten',4.5,sourceSide,1);target.stun=Math.max(target.stun||0,1.3);bonus=2.15;critical=true;}",'stronger SHATTERED'],
+    ["else if(reaction==='ECLIPSED'){setElementStatus(target,'blinded',4.6,sourceSide,1);setElementStatus(target,'cursed',6.2,sourceSide,Math.max(2.4,baseDamage*.08));bonus=1.16;}","else if(reaction==='ECLIPSED'){setElementStatus(target,'blinded',6,sourceSide,1);setElementStatus(target,'cursed',8,sourceSide,Math.max(4,baseDamage*.14));bonus=1.6;critical=true;}",'stronger ECLIPSED'],
+    ["else if(reaction==='SCORCHED'){setElementStatus(target,'burned',6,sourceSide,Math.max(3,baseDamage*.11));setElementStatus(target,'cursed',4.8,sourceSide,Math.max(2.2,baseDamage*.07));bonus=1.17;}","else if(reaction==='SCORCHED'){setElementStatus(target,'burned',8,sourceSide,Math.max(5,baseDamage*.18));setElementStatus(target,'cursed',6.2,sourceSide,Math.max(3.5,baseDamage*.11));bonus=1.68;critical=true;}",'stronger SCORCHED'],
+    ["else if(reaction==='ROOTED'){setElementStatus(target,'poisoned',6.5,sourceSide,Math.max(2.3,baseDamage*.09));setElementStatus(target,'frostbitten',2.5,sourceSide,1);target.stun=Math.max(target.stun||0,.9);bonus=1.14;}","else if(reaction==='ROOTED'){setElementStatus(target,'poisoned',8,sourceSide,Math.max(4.5,baseDamage*.14));setElementStatus(target,'frostbitten',3.6,sourceSide,1);target.stun=Math.max(target.stun||0,1.6);bonus=1.5;}",'stronger ROOTED'],
+    ["else if(reaction==='RUSTED'){setElementStatus(target,'frostbitten',3.6,sourceSide,1);bonus=1.15;}","else if(reaction==='RUSTED'){setElementStatus(target,'frostbitten',5.1,sourceSide,1);bonus=1.42;critical=true;}",'stronger RUSTED'],
+    ["else if(reaction==='OVERCHARGED'){setElementStatus(target,'electrified',5.2,sourceSide,Math.max(3.1,baseDamage*.14));setElementStatus(target,'poisoned',4.2,sourceSide,Math.max(2.1,baseDamage*.07));bonus=1.18;}","else if(reaction==='OVERCHARGED'){setElementStatus(target,'electrified',6.8,sourceSide,Math.max(6,baseDamage*.26));setElementStatus(target,'poisoned',5.2,sourceSide,Math.max(4,baseDamage*.12));bonus=1.72;critical=true;}",'stronger OVERCHARGED'],
+    ["else if(reaction==='HALO'){setElementStatus(target,'blinded',4,sourceSide,1);bonus=1.12;critical=true;}","else if(reaction==='HALO'){setElementStatus(target,'blinded',5.5,sourceSide,1);bonus=1.48;critical=true;}",'stronger HALO'],
+    ["else if(reaction==='SMASHED'){bonus=1.2;const radius=3.4*mapSize.scale;if(target.side&&spatial[target.side])forEachSpatialUnit(target.side,target.mesh.position,radius,unit=>{if(unit!==target&&!unit.dead)dealDamage(unit,Math.max(4,baseDamage*.32),sourceSide,'element-reaction',sourceObject,{element:'physical',skipReactions:true,noMatchup:true});});reactionBurst(target,'physical','SMASHED',1.0);}","else if(reaction==='SMASHED'){bonus=1.7;critical=true;const radius=4.4*mapSize.scale;if(target.side&&spatial[target.side])forEachSpatialUnit(target.side,target.mesh.position,radius,unit=>{if(unit!==target&&!unit.dead)dealDamage(unit,Math.max(8,baseDamage*.58),sourceSide,'element-reaction',sourceObject,{element:'physical',skipReactions:true,noMatchup:true});});reactionBurst(target,'physical','SMASHED',1.7);}",'stronger SMASHED'],
+    ["reactionBurst(target,incoming,reaction,reaction==='BOMBED'?1.2:reaction==='SMASHED'?1.0:.72);return{bonus,critical};","reactionBurst(target,incoming,reaction,reaction==='BOMBED'?2.0:reaction==='SMASHED'?1.6:1.25);return{bonus,critical};",'larger default reaction burst']
+  ];
+  for(const [oldValue,newValue,label] of reactionReplacements)replaceOne(oldValue,newValue,label);
+
+  return text;
+}
+
+
+function patchElementBattleMode(text){
+  function once(oldValue,newValue,label){
+    if(!text.includes(oldValue)){console.warn('Kingdom Clash element-mode patch skipped: '+label);return false;}
+    text=text.replace(oldValue,newValue);
+    return true;
+  }
+
+  // Global battle preference. Default is Elements ON.
+  once(
+    "selectedWeatherOverlap=false,selectedTeamCount=2,selectedHero='summoner'",
+    "selectedWeatherOverlap=false,selectedElementsEnabled=true,selectedTeamCount=2,selectedHero='summoner'",
+    'element battle preference'
+  );
+
+  // Offline/CPU battle setup option.
+  once(
+    "</div><h2 style=\"margin-top:15px\">COMMANDERS · EVERY TEAM FOR ITSELF</h2>",
+    "</div><h2 style=\"margin-top:15px\">BATTLE ELEMENTS</h2><div class=\"kc-difficulties\">'+button('ELEMENTS ON',selectedElementsEnabled?'sel':'','data-elements-mode=\"on\"')+button('ELEMENTS OFF',!selectedElementsEnabled?'sel':'','data-elements-mode=\"off\"')+'</div><div class=\"kc-info\">ON enables elements, reactions, combos, elemental visuals, and element-attuned weapon bonuses. OFF uses normal non-element combat.</div><h2 style=\"margin-top:15px\">COMMANDERS · EVERY TEAM FOR ITSELF</h2>",
+    'offline element toggle UI'
+  );
+  once(
+    "root.querySelectorAll('[data-weather-overlap]').forEach(b=>b.onclick=()=>{selectedWeatherOverlap=b.dataset.weatherOverlap==='yes';root.querySelectorAll('[data-weather-overlap]').forEach(x=>x.classList.toggle('sel',x===b));});",
+    "root.querySelectorAll('[data-weather-overlap]').forEach(b=>b.onclick=()=>{selectedWeatherOverlap=b.dataset.weatherOverlap==='yes';root.querySelectorAll('[data-weather-overlap]').forEach(x=>x.classList.toggle('sel',x===b));});root.querySelectorAll('[data-elements-mode]').forEach(b=>b.onclick=()=>{selectedElementsEnabled=b.dataset.elementsMode!=='off';root.querySelectorAll('[data-elements-mode]').forEach(x=>x.classList.toggle('sel',x===b));});",
+    'offline element toggle binding'
+  );
+
+  // Online matchmaking setup option.
+  once(
+    "</div><h2 style=\"margin-top:12px\">SIDE ASSIGNMENT</h2>",
+    "</div><h2 style=\"margin-top:12px\">BATTLE ELEMENTS</h2><div class=\"kc-difficulties\">'+button('ELEMENTS ON',selectedElementsEnabled?'sel':'','data-online-elements-mode=\"on\"')+button('ELEMENTS OFF',!selectedElementsEnabled?'sel':'','data-online-elements-mode=\"off\"')+'</div><h2 style=\"margin-top:12px\">SIDE ASSIGNMENT</h2>",
+    'online element toggle UI'
+  );
+  once(
+    "exclusive('[data-online-time-speed]');exclusive('[data-online-side-mode]');",
+    "exclusive('[data-online-time-speed]');exclusive('[data-online-elements-mode]');exclusive('[data-online-side-mode]');",
+    'online element toggle binding'
+  );
+
+  // Read the online toggle before matchmaking and keep it with the search state.
+  once(
+    "timeSpeed=(root.querySelector('[data-online-time-speed].sel')||{}).dataset.onlineTimeSpeed||selectedTimeSpeed,sideMode=",
+    "timeSpeed=(root.querySelector('[data-online-time-speed].sel')||{}).dataset.onlineTimeSpeed||selectedTimeSpeed,elementsEnabled=((root.querySelector('[data-online-elements-mode].sel')||{}).dataset.onlineElementsMode||'on')!=='off',sideMode=",
+    'online element selection read'
+  );
+  once(
+    "selectedTimeSpeed=TIME_SPEED_DEFS[timeSpeed]?timeSpeed:'normal';onlineSideMode=sideMode;",
+    "selectedTimeSpeed=TIME_SPEED_DEFS[timeSpeed]?timeSpeed:'normal';selectedElementsEnabled=elementsEnabled;onlineSideMode=sideMode;",
+    'online element preference store'
+  );
+  once(
+    "onlineSearch={token,name,targetCount,mapSize:selectedMapSize,timeSpeed:selectedTimeSpeed,sideMode,",
+    "onlineSearch={token,name,targetCount,mapSize:selectedMapSize,timeSpeed:selectedTimeSpeed,elementsEnabled:selectedElementsEnabled!==false,sideMode,",
+    'online search element mode'
+  );
+
+  // Match only players using the same element rule set.
+  once(
+    "const roomId='kingdom-clash-random-'+onlineSearch.targetCount+'-'+onlineSearch.mapSize+'-'+onlineSearch.timeSpeed+'-'+index;",
+    "const roomId='kingdom-clash-random-'+onlineSearch.targetCount+'-'+onlineSearch.mapSize+'-'+onlineSearch.timeSpeed+'-'+(onlineSearch.elementsEnabled?'elements-on':'elements-off')+'-'+index;",
+    'element-separated online rooms'
+  );
+
+  // Host lobby owns the rule and shares it with guests.
+  once(
+    "targetCount:search.targetCount,mapSize:search.mapSize,timeSpeed:search.timeSpeed,weatherMode:'random'",
+    "targetCount:search.targetCount,mapSize:search.mapSize,timeSpeed:search.timeSpeed,elementsEnabled:search.elementsEnabled!==false,weatherMode:'random'",
+    'host lobby element mode'
+  );
+  once(
+    "return{t:'lobbyUpdate',targetCount:match.targetCount,timeSpeed:match.timeSpeed,weatherMode:",
+    "return{t:'lobbyUpdate',targetCount:match.targetCount,timeSpeed:match.timeSpeed,elementsEnabled:match.elementsEnabled!==false,weatherMode:",
+    'lobby packet element mode'
+  );
+  once(
+    "targetCount:match.targetCount,mapSize:match.mapSize,timeSpeed:match.timeSpeed,weatherMode:match.weatherMode",
+    "targetCount:match.targetCount,mapSize:match.mapSize,timeSpeed:match.timeSpeed,elementsEnabled:match.elementsEnabled!==false,weatherMode:match.weatherMode",
+    'lobby welcome element mode'
+  );
+  once(
+    "targetCount:message.targetCount,mapSize:message.mapSize||'medium',timeSpeed:TIME_SPEED_DEFS[message.timeSpeed]?message.timeSpeed:'normal',weatherMode:",
+    "targetCount:message.targetCount,mapSize:message.mapSize||'medium',timeSpeed:TIME_SPEED_DEFS[message.timeSpeed]?message.timeSpeed:'normal',elementsEnabled:message.elementsEnabled!==false,weatherMode:",
+    'guest lobby element mode'
+  );
+  once(
+    "match.timeSpeed=TIME_SPEED_DEFS[message.timeSpeed]?message.timeSpeed:match.timeSpeed;selectedTimeSpeed=match.timeSpeed||selectedTimeSpeed;match.weatherMode=",
+    "match.timeSpeed=TIME_SPEED_DEFS[message.timeSpeed]?message.timeSpeed:match.timeSpeed;selectedTimeSpeed=match.timeSpeed||selectedTimeSpeed;match.elementsEnabled=message.elementsEnabled!==false;selectedElementsEnabled=match.elementsEnabled;match.weatherMode=",
+    'lobby update element mode'
+  );
+
+  // Show the selected rule in the online lobby and lock it once matchmaking begins.
+  once(
+    "weatherText='AUTO WEATHER · '+frequency.name+' · '+(match.weatherOverlap?'COMBINATIONS ON':'ONE AT A TIME');",
+    "weatherText='AUTO WEATHER · '+frequency.name+' · '+(match.weatherOverlap?'COMBINATIONS ON':'ONE AT A TIME'),elementText=match.elementsEnabled!==false?'ELEMENTS ON':'ELEMENTS OFF';",
+    'online element lobby label'
+  );
+  once(
+    "+weatherText,need>0);",
+    "+weatherText+' · '+elementText,need>0);",
+    'online status element label'
+  );
+  once(
+    "const ask=ensureRoot().querySelector('[data-act=\"online-start-fewer\"]'),yes=ensureRoot().querySelector('[data-act=\"online-vote-yes\"]'),no=ensureRoot().querySelector('[data-act=\"online-vote-no\"]');",
+    "const ask=ensureRoot().querySelector('[data-act=\"online-start-fewer\"]'),yes=ensureRoot().querySelector('[data-act=\"online-vote-yes\"]'),no=ensureRoot().querySelector('[data-act=\"online-vote-no\"]');ensureRoot().querySelectorAll('[data-online-elements-mode]').forEach(button=>{button.classList.toggle('sel',(button.dataset.onlineElementsMode!=='off')===(match.elementsEnabled!==false));button.disabled=true;});",
+    'lock online element selector in lobby'
+  );
+
+  // Include rule in match start and apply on both host and guests.
+  once(
+    "selectedWeatherOverlap=match.weatherOverlap;selectedQuality='medium';",
+    "selectedWeatherOverlap=match.weatherOverlap;selectedElementsEnabled=match.elementsEnabled!==false;selectedQuality='medium';",
+    'host battle element mode'
+  );
+  once(
+    "weatherFrequency:selectedWeatherFrequency,weatherOverlap:selectedWeatherOverlap,quality:'medium'",
+    "weatherFrequency:selectedWeatherFrequency,weatherOverlap:selectedWeatherOverlap,elementsEnabled:match.elementsEnabled!==false,quality:'medium'",
+    'matchStart element mode packet'
+  );
+  once(
+    "match.weatherOverlap=!!message.weatherOverlap;match.queue=[];",
+    "match.weatherOverlap=!!message.weatherOverlap;match.elementsEnabled=message.elementsEnabled!==false;match.queue=[];",
+    'guest match element mode'
+  );
+  once(
+    "selectedWeatherOverlap=!!match.weatherOverlap;selectedQuality='medium';",
+    "selectedWeatherOverlap=!!match.weatherOverlap;selectedElementsEnabled=match.elementsEnabled!==false;selectedQuality='medium';",
+    'guest selected element mode'
+  );
+
+  // Test harness online matches should also support the setting.
+  once(
+    "weatherOverlap:!!options.weatherOverlap,players:Object.fromEntries",
+    "weatherOverlap:!!options.weatherOverlap,elementsEnabled:options.elementsEnabled!==false,players:Object.fromEntries",
+    'online test element mode'
+  );
+
+  // Battle-local rule. Online reads the synchronized lobby value; offline reads menu preference.
+  once(
+    "isOnline=!!network,isHost=!!(network&&network.role==='host'),isGuest=!!(network&&network.role==='guest');",
+    "isOnline=!!network,isHost=!!(network&&network.role==='host'),isGuest=!!(network&&network.role==='guest'),elementsEnabled=isOnline?network.elementsEnabled!==false:selectedElementsEnabled!==false;",
+    'battle element rule'
+  );
+
+  // ELEMENTS OFF removes element selection and forces all spawned units to normal physical attacks.
+  once(
+    "function refreshElementUI(){\n      root.querySelectorAll('[data-element]').forEach(button=>button.classList.toggle('sel',button.dataset.element===selectedElement));\n      root.querySelectorAll('[data-unit-element-label]').forEach(label=>{const def=ELEMENT_DEFS[selectedElement];label.textContent=def.name;label.style.color=def.css;});\n    }",
+    "function refreshElementUI(){\n      const strip=root.querySelector('[data-element-strip]');if(strip)strip.style.display=elementsEnabled?'flex':'none';\n      root.querySelectorAll('[data-element]').forEach(button=>{button.disabled=!elementsEnabled;button.classList.toggle('sel',elementsEnabled&&button.dataset.element===selectedElement);});\n      root.querySelectorAll('[data-unit-element-label]').forEach(label=>{if(!elementsEnabled){label.textContent='ELEMENTS OFF';label.style.color='#cbd5dc';return;}const def=ELEMENT_DEFS[selectedElement];label.textContent=def.name;label.style.color=def.css;});\n    }",
+    'element UI on off state'
+  );
+  once(
+    "function setSelectedElement(key){selectedElement=normalizeElement(key);",
+    "function setSelectedElement(key){if(!elementsEnabled){selectedElement='physical';refreshElementUI();return selectedElement;}selectedElement=normalizeElement(key);",
+    'disable element selector'
+  );
+  once(
+    "function autoElementForUnit(team,type){if(team&&team.side===localSide)return selectedElement;",
+    "function autoElementForUnit(team,type){if(!elementsEnabled)return'physical';if(team&&team.side===localSide)return selectedElement;",
+    'physical units when elements off'
+  );
+  once(
+    "function resolveElementalHit(target,amount,sourceSide,damageType,sourceObject,meta=null){\n      const element=",
+    "function resolveElementalHit(target,amount,sourceSide,damageType,sourceObject,meta=null){\n      if(!elementsEnabled)return{amount,element:'physical',critical:false,reaction:'',matchup:1};\n      const element=",
+    'disable elemental combat pipeline'
+  );
+  once(
+    "function updateElementStatuses(dt){\n      const targets=",
+    "function updateElementStatuses(dt){\n      if(!elementsEnabled)return;\n      const targets=",
+    'disable element status updates'
+  );
+  once(
+    "const elementGear=u.armoryElementBoosts&&u.armoryElementBoosts[u.element];",
+    "const elementGear=elementsEnabled&&u.armoryElementBoosts&&u.armoryElementBoosts[u.element];",
+    'disable elemental weapon attunement bonuses'
+  );
+
+  return text;
+}
+
+
+function patchElementBattleModeFallback(text){
+  function put(token,oldValue,newValue,label){
+    if(text.includes(token))return true;
+    if(!text.includes(oldValue)){console.warn('Kingdom Clash elements fallback skipped: '+label);return false;}
+    text=text.replace(oldValue,newValue);return true;
+  }
+
+  // Always guarantee the preference exists. Default stays ON.
+  put('selectedWeatherOverlap=false,selectedElementsEnabled=true,selectedTeamCount=2',"selectedWeatherOverlap=false,selectedTeamCount=2","selectedWeatherOverlap=false,selectedElementsEnabled=true,selectedTeamCount=2",'element preference');
+
+  // Offline menu and binding.
+  put('data-elements-mode=',"<h2 style=\"margin-top:15px\">COMMANDERS · EVERY TEAM FOR ITSELF</h2>","<h2 style=\"margin-top:15px\">BATTLE ELEMENTS</h2><div class=\"kc-difficulties\">'+button('ELEMENTS ON',selectedElementsEnabled?'sel':'','data-elements-mode=\"on\"')+button('ELEMENTS OFF',!selectedElementsEnabled?'sel':'','data-elements-mode=\"off\"')+'</div><div class=\"kc-info\">ELEMENTS ON enables elemental attacks, reactions, combos, and attuned gear. ELEMENTS OFF uses normal physical combat.</div><h2 style=\"margin-top:15px\">COMMANDERS · EVERY TEAM FOR ITSELF</h2>",'offline toggle UI');
+  put("querySelectorAll('[data-elements-mode]')","root.querySelectorAll('[data-team-count]').forEach","root.querySelectorAll('[data-elements-mode]').forEach(b=>b.onclick=()=>{selectedElementsEnabled=b.dataset.elementsMode!=='off';root.querySelectorAll('[data-elements-mode]').forEach(x=>x.classList.toggle('sel',x===b));});root.querySelectorAll('[data-team-count]').forEach",'offline toggle binding');
+
+  // Online menu and selection.
+  put('data-online-elements-mode=',"<h2 style=\"margin-top:12px\">SIDE ASSIGNMENT</h2>","<h2 style=\"margin-top:12px\">BATTLE ELEMENTS</h2><div class=\"kc-difficulties\">'+button('ELEMENTS ON',selectedElementsEnabled?'sel':'','data-online-elements-mode=\"on\"')+button('ELEMENTS OFF',!selectedElementsEnabled?'sel':'','data-online-elements-mode=\"off\"')+'</div><h2 style=\"margin-top:12px\">SIDE ASSIGNMENT</h2>",'online toggle UI');
+  put("exclusive('[data-online-elements-mode]')","exclusive('[data-online-time-speed]');","exclusive('[data-online-time-speed]');exclusive('[data-online-elements-mode]');",'online toggle binding');
+  put('dataset.onlineElementsMode',"timeSpeed=(root.querySelector('[data-online-time-speed].sel')||{}).dataset.onlineTimeSpeed||selectedTimeSpeed,sideMode=","timeSpeed=(root.querySelector('[data-online-time-speed].sel')||{}).dataset.onlineTimeSpeed||selectedTimeSpeed,elementsEnabled=((root.querySelector('[data-online-elements-mode].sel')||{}).dataset.onlineElementsMode||'on')!=='off',sideMode=",'online toggle read');
+  put('selectedElementsEnabled=elementsEnabled',"selectedTimeSpeed=TIME_SPEED_DEFS[timeSpeed]?timeSpeed:'normal';onlineSideMode=sideMode;","selectedTimeSpeed=TIME_SPEED_DEFS[timeSpeed]?timeSpeed:'normal';selectedElementsEnabled=elementsEnabled;onlineSideMode=sideMode;",'online preference store');
+  put('timeSpeed:selectedTimeSpeed,elementsEnabled:',"onlineSearch={token,name,targetCount,mapSize:selectedMapSize,timeSpeed:selectedTimeSpeed,sideMode,","onlineSearch={token,name,targetCount,mapSize:selectedMapSize,timeSpeed:selectedTimeSpeed,elementsEnabled:selectedElementsEnabled!==false,sideMode,",'online search mode');
+  put("'elements-on':'elements-off'","const roomId='kingdom-clash-random-'+onlineSearch.targetCount+'-'+onlineSearch.mapSize+'-'+onlineSearch.timeSpeed+'-'+index;","const roomId='kingdom-clash-random-'+onlineSearch.targetCount+'-'+onlineSearch.mapSize+'-'+onlineSearch.timeSpeed+'-'+(onlineSearch.elementsEnabled?'elements-on':'elements-off')+'-'+index;",'separate matchmaking rooms');
+
+  // Online state synchronization. These are deliberately small anchors.
+  put('timeSpeed:search.timeSpeed,elementsEnabled:',"timeSpeed:search.timeSpeed,weatherMode:'random'","timeSpeed:search.timeSpeed,elementsEnabled:search.elementsEnabled!==false,weatherMode:'random'",'host lobby mode');
+  put("t:'lobbyUpdate',targetCount:match.targetCount,timeSpeed:match.timeSpeed,elementsEnabled:","t:'lobbyUpdate',targetCount:match.targetCount,timeSpeed:match.timeSpeed,weatherMode:","t:'lobbyUpdate',targetCount:match.targetCount,timeSpeed:match.timeSpeed,elementsEnabled:match.elementsEnabled!==false,weatherMode:",'lobby packet mode');
+  put('mapSize:match.mapSize,timeSpeed:match.timeSpeed,elementsEnabled:',"mapSize:match.mapSize,timeSpeed:match.timeSpeed,weatherMode:match.weatherMode","mapSize:match.mapSize,timeSpeed:match.timeSpeed,elementsEnabled:match.elementsEnabled!==false,weatherMode:match.weatherMode",'welcome packet mode');
+  put("mapSize:message.mapSize||'medium',timeSpeed:TIME_SPEED_DEFS[message.timeSpeed]?message.timeSpeed:'normal',elementsEnabled:","mapSize:message.mapSize||'medium',timeSpeed:TIME_SPEED_DEFS[message.timeSpeed]?message.timeSpeed:'normal',weatherMode:","mapSize:message.mapSize||'medium',timeSpeed:TIME_SPEED_DEFS[message.timeSpeed]?message.timeSpeed:'normal',elementsEnabled:message.elementsEnabled!==false,weatherMode:",'guest lobby mode');
+  put('selectedTimeSpeed=match.timeSpeed||selectedTimeSpeed;match.elementsEnabled=',"selectedTimeSpeed=match.timeSpeed||selectedTimeSpeed;match.weatherMode=","selectedTimeSpeed=match.timeSpeed||selectedTimeSpeed;match.elementsEnabled=message.elementsEnabled!==false;selectedElementsEnabled=match.elementsEnabled;match.weatherMode=",'guest lobby update mode');
+  put("weatherOverlap:selectedWeatherOverlap,elementsEnabled:","weatherOverlap:selectedWeatherOverlap,quality:'medium'","weatherOverlap:selectedWeatherOverlap,elementsEnabled:match.elementsEnabled!==false,quality:'medium'",'match start packet mode');
+  put('match.weatherOverlap=!!message.weatherOverlap;match.elementsEnabled=',"match.weatherOverlap=!!message.weatherOverlap;match.queue=[];","match.weatherOverlap=!!message.weatherOverlap;match.elementsEnabled=message.elementsEnabled!==false;match.queue=[];",'guest match mode');
+
+  // Host and guest selected setting before battle creation.
+  if(!text.includes("selectedWeatherOverlap=match.weatherOverlap;selectedElementsEnabled="))text=text.replace("selectedWeatherOverlap=match.weatherOverlap;selectedQuality='medium';","selectedWeatherOverlap=match.weatherOverlap;selectedElementsEnabled=match.elementsEnabled!==false;selectedQuality='medium';");
+  if(!text.includes("selectedWeatherOverlap=!!match.weatherOverlap;selectedElementsEnabled="))text=text.replace("selectedWeatherOverlap=!!match.weatherOverlap;selectedQuality='medium';","selectedWeatherOverlap=!!match.weatherOverlap;selectedElementsEnabled=match.elementsEnabled!==false;selectedQuality='medium';");
+
+  // Battle-local rule.
+  put('elementsEnabled=isOnline?network.elementsEnabled!==false:selectedElementsEnabled!==false',"isOnline=!!network,isHost=!!(network&&network.role==='host'),isGuest=!!(network&&network.role==='guest');","isOnline=!!network,isHost=!!(network&&network.role==='host'),isGuest=!!(network&&network.role==='guest'),elementsEnabled=isOnline?network.elementsEnabled!==false:selectedElementsEnabled!==false;",'battle rule');
+
+  // True non-element combat when OFF.
+  put("if(!elementsEnabled)return{amount,element:'physical',critical:false,reaction:'',matchup:1};","function resolveElementalHit(target,amount,sourceSide,damageType,sourceObject,meta=null){","function resolveElementalHit(target,amount,sourceSide,damageType,sourceObject,meta=null){if(!elementsEnabled)return{amount,element:'physical',critical:false,reaction:'',matchup:1};",'disable elemental resolver');
+  put("if(!elementsEnabled)return;const targets=[...units,...wildlife]","function updateElementStatuses(dt){\n      const targets=[...units,...wildlife]","function updateElementStatuses(dt){\n      if(!elementsEnabled)return;const targets=[...units,...wildlife]",'disable statuses');
+  put("function autoElementForUnit(team,type){if(!elementsEnabled)return'physical';","function autoElementForUnit(team,type){","function autoElementForUnit(team,type){if(!elementsEnabled)return'physical';",'force physical units');
+  put('const elementGear=elementsEnabled&&u.armoryElementBoosts',"const elementGear=u.armoryElementBoosts&&u.armoryElementBoosts[u.element];","const elementGear=elementsEnabled&&u.armoryElementBoosts&&u.armoryElementBoosts[u.element];",'disable attuned gear');
+  put('u.elementalCaster=elementsEnabled&&ELEMENT_MAGIC_TYPES.has(type)',"u.elementalCaster=ELEMENT_MAGIC_TYPES.has(type);","u.elementalCaster=elementsEnabled&&ELEMENT_MAGIC_TYPES.has(type);",'disable elemental casting');
+  put("function setSelectedElement(key){if(!elementsEnabled)","function setSelectedElement(key){selectedElement=normalizeElement(key);","function setSelectedElement(key){if(!elementsEnabled){selectedElement='physical';refreshElementUI();return selectedElement;}selectedElement=normalizeElement(key);",'disable element selector');
+
+  return text;
+}
+
 try{
   const response=await fetch(ORIGINAL_URL,{cache:'force-cache',headers:{Accept:'application/vnd.github+json'}});
   if(!response.ok)throw new Error('Could not load the original Kingdom Clash game ('+response.status+').');
   const payload=await response.json();
   if(!payload||payload.encoding!=='base64'||!payload.content)throw new Error('The original game file was not returned by GitHub.');
   const original=decodeBase64Utf8(payload.content);
-  const patched=patchKingdomClash(original);
+  let patched=patchKingdomClash(original);
+  patched=patchMaskingAndComboSafety(patched);
+  patched=patchMaskingFreezeFix(patched);
+  patched=patchWatchTowerBeamFreezeFix(patched);
+  patched=patchFortStairsNoSideCollision(patched);
+  patched=patchHugeCombosVisible(patched);
+  patched=patchElementBattleMode(patched);
+  patched=patchElementBattleModeFallback(patched);
   document.open();
   document.write(patched);
   document.close();
